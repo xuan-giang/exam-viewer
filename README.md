@@ -8,6 +8,7 @@ Web tĩnh xem lại và làm lại bài thi trắc nghiệm từ file JSON kết
 - **Ghi chú** bên cạnh mỗi câu (tự lưu khi gõ), màn tổng hợp ghi chú có tìm kiếm, sắp xếp, tải về `.md`
 - Đánh dấu câu **đã chữa**, lọc câu chưa chữa/đã chữa, làm lại riêng các câu sai chưa chữa
 - Tự lưu bài đang làm, câu đã chữa và lịch sử các lượt làm lại vào localStorage (theo từng đề)
+- **Đồng bộ nhiều thiết bị** qua Firebase (đăng nhập Google): danh sách đề đã lưu, câu đã chữa, ghi chú, lịch sử làm lại và bài đang làm dở
 - **Export** toàn bộ dữ liệu ra file JSON để import lại trên máy khác
 
 ## Định dạng JSON
@@ -52,6 +53,21 @@ Cùng định dạng với file đề (import lại được), thêm dữ liệu
 ```
 
 Import file export vào trình duyệt đã có dữ liệu của cùng đề thì hai bên được gộp (câu đã chữa gộp lại, ghi chú giữ bản sửa mới hơn, lượt làm không bị trùng).
+
+## Đồng bộ cloud (Firebase)
+
+- Project Firebase `exam-viewer-fae56` (gói Spark miễn phí), Firestore ở `asia-southeast1`, đăng nhập Google.
+- Chỉ tài khoản `ngxuangiang2020@gmail.com` được đọc/ghi (Security Rules + kiểm tra trong code). Người khác vẫn dùng web ở chế độ lưu cục bộ.
+- Dữ liệu: `users/{uid}/exams/{examId}` (tóm tắt), `…/data/q0..qN` (câu hỏi), `…/data/progress` (đã chữa + ghi chú), `…/attempts/{id}`, `users/{uid}/state/quiz` (bài đang làm dở).
+- `firebaseConfig` trong `index.html` là cấu hình web công khai theo thiết kế của Firebase; bảo mật nằm ở Security Rules:
+
+```
+rules_version = '2';
+service cloud.firestore { match /databases/{database}/documents { match /users/{uid}/{document=**} {
+  allow read, write: if request.auth != null && request.auth.uid == uid
+    && request.auth.token.email == 'ngxuangiang2020@gmail.com' && request.auth.token.email_verified == true;
+} } }
+```
 
 ## Chạy local
 

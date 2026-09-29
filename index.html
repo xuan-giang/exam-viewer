@@ -179,8 +179,36 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;background:var(--text);color:var(--bg);padding:8px 16px;border-radius:8px;font-size:14px;box-shadow:var(--shadow)}
 
+/* Danh sách đề (cloud) */
+#home{max-width:1000px;margin:0 auto;padding:16px}
+.home-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.home-head h2{margin:0;font-size:20px;flex:1;min-width:160px}
+.home-head .who{font-size:13px;color:var(--muted);width:100%;margin-top:-6px}
+.exams{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.exam{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.exam:hover,.exam:focus-visible{border-color:var(--accent);outline:none}
+.exam h3{margin:0 0 2px;font-size:15px;overflow-wrap:anywhere}
+.exam .sc{display:flex;align-items:baseline;gap:8px}
+.exam .sc b{font-size:24px;font-variant-numeric:tabular-nums}
+.exam .sc span,.exam .row{font-size:13px;color:var(--muted)}
+.exam .row b{color:var(--text)}
+.exam .bar{margin:2px 0}
+.exam .bar i{background:var(--ok)}
+.exam .bar{background:var(--surface-2)}
+.exam .foot{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-top:4px;gap:8px}
+.exam .del{border:0;background:none;color:var(--muted);font-size:12px;padding:2px 4px}
+.exam .del:hover{color:var(--bad)}
+.home-empty{text-align:center;color:var(--muted);padding:48px 16px;background:var(--surface);border:1px dashed var(--border);border-radius:12px}
+#btnAuth .sync-saving{color:var(--warn)}
+#btnAuth .sync-offline,#btnAuth .sync-error{color:var(--bad)}
+.mob{display:none}
+#dropAuth{margin-top:12px}
+
 /* Mobile */
 @media (max-width:860px){
+  header .lbl{display:none}
+  #btnExport,#btnReload{display:none!important}
+  .mob{display:inline-block}
   .layout{grid-template-columns:1fr;padding:12px 16px}
   #navToggle{display:inline-block}
   aside{position:fixed;inset:57px 0 0 0;border-radius:0;max-height:none;z-index:15;display:none}
@@ -205,6 +233,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <button class="btn" id="btnNotes" hidden title="Xem tổng hợp các ghi chú">Ghi chú</button>
   <button class="btn" id="btnExport" hidden title="Tải về file JSON gồm câu hỏi, câu đã chữa và lịch sử làm lại">Export</button>
   <button class="btn" id="btnReload" hidden title="Mở file đề hoặc file đã export">Mở file</button>
+  <button class="btn" id="btnHome" hidden title="Danh sách đề đã lưu">☰<span class="lbl"> Danh sách đề</span></button>
+  <button class="btn" id="btnAuth" hidden></button>
   <button class="btn" id="theme" title="Đổi giao diện sáng/tối">◐</button>
 </header>
 
@@ -213,10 +243,22 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <!-- Upload -->
 <section id="drop">
   <h2>Tải lên file kết quả bài thi</h2>
-  <p>Kéo thả file <b>.json</b> vào đây, hoặc bấm nút bên dưới.<br>Nhận cả file đề gốc lẫn file đã export (có dữ liệu câu đã chữa và lịch sử làm lại).<br>File chỉ được đọc trên trình duyệt, không gửi lên server.</p>
-  <button class="btn primary" id="pick">Chọn file JSON</button>
+  <p>Kéo thả file <b>.json</b> vào đây, hoặc bấm nút bên dưới.<br>Nhận cả file đề gốc lẫn file đã export (có dữ liệu câu đã chữa và lịch sử làm lại).<br><span id="dropNote">Chưa đăng nhập: dữ liệu chỉ lưu trên trình duyệt này.</span></p>
+  <button class="btn primary" id="pick">Chọn file JSON</button><br>
+  <button class="btn" id="dropAuth" hidden>Đăng nhập Google để đồng bộ nhiều thiết bị</button>
   <input type="file" id="file" accept=".json,application/json" hidden>
   <div id="err"></div>
+</section>
+
+<!-- Danh sách đề đã lưu trên cloud -->
+<section id="home" hidden>
+  <div class="home-head">
+    <h2>Đề của bạn</h2>
+    <button class="btn primary" id="homeAdd">+ Thêm đề (JSON)</button>
+    <div class="who" id="homeWho"></div>
+  </div>
+  <div id="homeResume"></div>
+  <div id="homeList"></div>
 </section>
 
 <!-- Review (file gốc hoặc kết quả lần làm) -->
@@ -350,6 +392,8 @@ const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33
 
 // Q: câu hỏi của đề; D: dữ liệu ôn tập của đề (lưu theo fileId = băm nội dung câu hỏi)
 let Q = [], byNo = new Map(), fileName = '', fileId = '', view = 'drop';
+// Đồng bộ cloud: module Firebase cuối trang gắn các hàm vào đây; khi chưa tải được hoặc chưa đăng nhập, web chạy offline như cũ
+const Cloud = window.Cloud = {ready: false, user: null, exams: [], listReady: false, quiz: null, sync: 'idle'};
 let D = {reviewed: {}, notes: {}, attempts: []};
 const EXTRA = ['reviewed', 'reviewed_at', 'retry_stats', 'note', 'note_updated_at'];
 
@@ -412,14 +456,16 @@ function mergeData(a, b){
 function load(text, name, {restoring} = {}){
   try {
     const raw = JSON.parse(text);
-    flushNotes();
+    flushNotes(); Cloud.flush?.();
     Q = normalize(raw); fileName = name;
     byNo = new Map(Q.map(q => [q.no, q]));
     fileId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
     D = store.get(dataKey(), null) || {reviewed: {}, attempts: []};
     D.notes ||= {};
+    let inc = null;
     if (!restoring) {
-      const inc = importedData(raw), nInc = Object.keys(inc.reviewed).length + Object.keys(inc.notes).length + inc.attempts.length;
+      inc = importedData(raw);
+      const nInc = Object.keys(inc.reviewed).length + Object.keys(inc.notes).length + inc.attempts.length;
       const nHave = Object.keys(D.reviewed).length + Object.keys(D.notes).length + D.attempts.length;
       if (nInc) {
         const before = D.attempts.length;
@@ -430,8 +476,8 @@ function load(text, name, {restoring} = {}){
       // chỉ giữ câu hỏi trong bản lưu file, dữ liệu ôn tập nằm ở ev-data
       store.set('ev-file', {name, text: JSON.stringify(Q.map(q => q.src))});
     }
-    $('#fname').textContent = name;
     showFileReview();
+    if (!restoring && Cloud.user) Cloud.openExam(inc);
     return true;
   } catch (e) { $('#err').textContent = 'Lỗi đọc file: ' + e.message; return false; }
 }
@@ -461,11 +507,12 @@ function exportData(){
 
 function show(v){
   view = v;
-  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes';
+  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes'; $('#home').hidden = v !== 'home';
+  $('#fname').textContent = ['review', 'notes', 'quiz'].includes(v) ? fileName : '';
   $('#btnPractice').hidden = $('#btnNotes').hidden = v !== 'review';
   $('#btnReload').hidden = $('#btnExport').hidden = v !== 'review' && v !== 'notes';
-  $('#navToggle').hidden = v === 'notes';
-  updateNotesBtn();
+  $('#navToggle').hidden = !['review', 'quiz'].includes(v);
+  updateNotesBtn(); renderAuth();
   autosizeAll();
   $('#timer').hidden = v !== 'quiz';
   $$('.side').forEach(s => s.classList.remove('open'));
@@ -522,15 +569,17 @@ function bannerHTML(){
   const items = RV.items, total = items.length, nOk = items.filter(x => x.ok === true).length, pct = Math.round(nOk / total * 100);
   const wrong = items.filter(x => x.ok !== true), wrongFixed = wrong.filter(x => isFixed(x.q)).length;
   const fixInfo = wrong.length ? `<span>Đã chữa <b>${wrongFixed}/${wrong.length}</b> câu sai</span>` : '';
-  const c = RV.ctx;
+  const c = RV.ctx, pq = c.kind === 'file' && QZ === null ? pendingQuiz() : null;
   if (c.kind === 'file') return `<div class="big">${pct}%</div>
     <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${total - nOk}</b></span>${fixInfo}
       ${D.attempts.length ? `<span>Đã làm lại <b>${D.attempts.length}</b> lượt</span>` : ''}
       ${Object.keys(D.notes).length ? `<span>Ghi chú <b>${Object.keys(D.notes).length}</b> câu</span>` : ''}</div>
-    <div class="acts"><button class="btn primary" data-act="setup">Làm lại bài</button>
+    <div class="acts">${pq ? `<button class="btn primary" data-act="resume">Tiếp tục bài đang làm (${pq.items.filter(x => x.pick.length).length}/${pq.items.length})</button>` : ''}
+    <button class="btn${pq ? '' : ' primary'}" data-act="setup">Làm lại bài</button>
     <button class="btn" data-act="notes">Ghi chú${Object.keys(D.notes).length ? ` (${Object.keys(D.notes).length})` : ''}</button>
     ${wrong.length ? '<button class="btn" data-act="wrong">Làm lại câu sai</button>' : ''}
-    ${wrong.length - wrongFixed && wrongFixed ? '<button class="btn" data-act="wrongTodo">Làm câu sai chưa chữa</button>' : ''}</div>`;
+    ${wrong.length - wrongFixed && wrongFixed ? '<button class="btn" data-act="wrongTodo">Làm câu sai chưa chữa</button>' : ''}
+    <button class="btn mob" data-act="export">Export</button><button class="btn mob" data-act="open">Mở file</button></div>`;
   const a = c.attempt;
   return `<div class="big" style="color:var(${pct >= 72 ? '--ok' : '--bad'})">${pct}%</div>
     <div class="stats"><span>Kết quả: <b>${nOk}/${total}</b> câu</span><span>Thời gian: <b>${fmt(a.secs)}</b></span>
@@ -582,17 +631,31 @@ function renderReview(){
 // Bật/tắt "đã chữa" rồi cập nhật tại chỗ, không render lại danh sách để giữ vị trí cuộn
 function toggleFixed(no){
   if (D.reviewed[no]) delete D.reviewed[no]; else D.reviewed[no] = Date.now();
-  saveData();
-  RV.items.forEach((it, i) => {
-    if (it.q.no !== no) return;
-    const card = $('#rv' + i);
-    card.querySelector('[data-fix]').outerHTML = fixBtn(it.q);
-    const g = $(`#rvGrid [data-i="${i}"]`);
-    g.className = gridCls(it) + (g.classList.contains('cur') ? ' cur' : '');
-  });
-  $('#rvBanner').innerHTML = bannerHTML();
-  $('#rvLegend').lastElementChild.innerHTML = `<b style="color:var(--ok)">✓</b> ${RV.items.filter(x => isFixed(x.q)).length} đã chữa`;
-  applyFilter();
+  saveData(); Cloud.markReviewed?.(no);
+  refreshUI();
+}
+// Cập nhật tại chỗ theo D (sau khi bấm "đã chữa" hoặc khi dữ liệu từ thiết bị khác về), giữ nguyên vị trí cuộn và ô đang gõ
+function refreshUI(){
+  ST = stats(); updateNotesBtn();
+  if (view === 'review') {
+    RV.items.forEach((it, i) => {
+      const card = $('#rv' + i); if (!card) return;
+      card.querySelector('[data-fix]').outerHTML = fixBtn(it.q);
+      const t = card.querySelector('textarea[data-note]'), n = D.notes[it.q.no];
+      if (t && document.activeElement !== t && t.value !== (n?.text || '')) { t.value = n?.text || ''; autosize(t); }
+      t?.closest('.note').classList.toggle('has', !!n);
+      const g = $(`#rvGrid [data-i="${i}"]`);
+      g.className = gridCls(it) + (g.classList.contains('cur') ? ' cur' : '');
+    });
+    $('#rvBanner').innerHTML = bannerHTML();
+    $('#rvLegend').lastElementChild.innerHTML = `<b style="color:var(--ok)">✓</b> ${RV.items.filter(x => isFixed(x.q)).length} đã chữa`;
+    applyFilter();
+  } else if (view === 'notes' && !document.activeElement?.matches('textarea[data-note]')) renderNotes();
+  else if (view === 'home') renderHome();
+}
+function applyCloudData(nd){
+  D = {reviewed: nd.reviewed || {}, notes: nd.notes || {}, attempts: nd.attempts || []};
+  saveData(); refreshUI();
 }
 
 /* ---------- Ghi chú ---------- */
@@ -604,6 +667,7 @@ let noteTimer;
 function setNote(no, text){
   if (text.trim()) D.notes[no] = {text, at: Date.now()}; else delete D.notes[no];
   clearTimeout(noteTimer); noteTimer = setTimeout(flushNotes, 400);
+  Cloud.setNote?.(no);
   const n = D.notes[no], sel = CSS.escape(no);
   $$(`[data-note-meta="${sel}"]`).forEach(m => m.textContent = n ? 'Đã lưu' : 'Tự lưu khi gõ');
   $$(`textarea[data-note="${sel}"]`).forEach(t => t.closest('.note').classList.toggle('has', !!n));
@@ -614,7 +678,7 @@ function updateNotesBtn(){ const n = Object.keys(D.notes).length; $('#btnNotes')
 document.addEventListener('input', e => { const t = e.target.closest('textarea[data-note]'); if (!t) return; autosize(t); setNote(t.dataset.note, t.value); });
 // Ghi chú lưu trễ 400ms khi gõ; flush trước khi rời trang hoặc mở file khác để không mất chữ vừa gõ
 function flushNotes(){ if (!noteTimer) return; clearTimeout(noteTimer); noteTimer = null; saveData(); }
-window.addEventListener('beforeunload', flushNotes);
+window.addEventListener('beforeunload', () => { flushNotes(); Cloud.flush?.(); });
 
 let NT = {sort: 'no', term: ''};
 function showNotes(){ NT.term = ''; $('#ntSearch').value = ''; show('notes'); renderNotes(); }
@@ -713,6 +777,9 @@ $('#rvBanner').onclick = e => {
   if (a === 'setup') openSetup();
   if (a === 'file') showFileReview();
   if (a === 'notes') showNotes();
+  if (a === 'resume') resumeQuiz();
+  if (a === 'export') exportData();
+  if (a === 'open') { $('#file').value = ''; $('#file').click(); }
   if (a === 'wrong') startQuiz(pool('wrong'), {...lastCfg(), count: 'all'});
   if (a === 'wrongTodo') startQuiz(pool('todo'), {...lastCfg(), count: 'all'});
   if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
@@ -828,9 +895,20 @@ function renderQuiz(){
 function saveQuiz(){
   if (!QZ) return;
   const {cfg, cur, startAt, endAt, items} = QZ;
-  store.set('ev-quiz', {fileId, cfg, cur, startAt, endAt,
-    items: items.map(({q, order, pick, flag, checked, ok}) => ({no: q.no, order, pick, flag, checked, ok}))});
+  const st = {fileId, savedAt: Date.now(), cfg, cur, startAt, endAt,
+    items: items.map(({q, order, pick, flag, checked, ok}) => ({no: q.no, order, pick, flag, checked, ok}))};
+  store.set('ev-quiz', st); Cloud.saveQuiz?.(st);
 }
+// Bài đang làm dở của đề hiện tại: lấy bản mới nhất giữa trình duyệt này và cloud (làm tiếp được trên máy khác)
+function pendingQuiz(){
+  const local = store.get('ev-quiz', null);
+  let cloud = null;
+  try { if (Cloud.quiz?.examId === fileId) cloud = JSON.parse(Cloud.quiz.data); } catch {}
+  return [local, cloud].filter(x => x && x.fileId === fileId && x.items?.every(i => byNo.has(i.no)))
+    .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0] || null;
+}
+function resumeQuiz(){ const s = pendingQuiz(); if (!s) return; store.set('ev-quiz', s); restoreQuiz(); }
+function endQuizStore(){ store.del('ev-quiz'); Cloud.clearQuiz?.(); }
 function restoreQuiz(){
   const s = store.get('ev-quiz', null);
   if (!s || s.fileId !== fileId || !s.items?.every(x => byNo.has(x.no))) return store.del('ev-quiz');
@@ -858,13 +936,13 @@ function submitQuiz(timeout){
     const left = QZ.items.filter(x => !x.pick.length).length;
     if (!confirm(left ? `Còn ${left} câu chưa trả lời. Vẫn nộp bài?` : 'Nộp bài?')) return;
   }
-  clearInterval(QZ.tick); store.del('ev-quiz');
+  clearInterval(QZ.tick); endQuizStore();
   const now = Date.now();
   const secs = Math.min((now - QZ.startAt) / 1000, QZ.endAt ? (QZ.endAt - QZ.startAt) / 1000 : Infinity);
   const attempt = {id: now.toString(36) + Math.random().toString(36).slice(2, 6), at: now, startedAt: QZ.startAt,
     mode: QZ.cfg.mode, secs, timeout, cfg: QZ.cfg,
     items: QZ.items.map(x => ({no: x.q.no, order: x.order, pick: x.pick, ok: same(x.pick, x.q.cor)}))};
-  D.attempts.unshift(attempt); saveData();
+  D.attempts.unshift(attempt); saveData(); Cloud.addAttempt?.(attempt);
   QZ = null;
   showAttempt(attempt);
   if (timeout) setTimeout(() => alert('Hết giờ! Bài đã được nộp tự động.'), 50);
@@ -880,7 +958,7 @@ $('#qzCard').onclick = e => {
   if (id === 'qzFlag') { QZ.items[QZ.cur].flag = !QZ.items[QZ.cur].flag; renderQuiz(); }
 };
 $('#btnSubmit').onclick = () => submitQuiz(false);
-$('#btnQuit').onclick = () => { if (confirm('Thoát và bỏ lượt làm bài này?')) { clearInterval(QZ.tick); QZ = null; store.del('ev-quiz');
+$('#btnQuit').onclick = () => { if (confirm('Thoát và bỏ lượt làm bài này?')) { clearInterval(QZ.tick); QZ = null; endQuizStore();
   RV.ctx?.kind === 'attempt' ? (renderReview(), show('review')) : showFileReview(); } };
 document.addEventListener('keydown', e => {
   if (view !== 'quiz' || !QZ || e.target.matches('input,textarea') || e.ctrlKey || e.metaKey || e.altKey || $('#setup').open) return;
@@ -893,6 +971,68 @@ document.addEventListener('keydown', e => {
   else return;
   e.preventDefault();
 });
+
+/* ---------- Danh sách đề + đăng nhập ---------- */
+function renderAuth(){
+  const b = $('#btnAuth');
+  b.hidden = !Cloud.ready;
+  $('#btnHome').hidden = !(Cloud.user && ['review', 'notes'].includes(view));
+  $('#dropAuth').hidden = !Cloud.ready || !!Cloud.user;
+  $('#dropNote').textContent = Cloud.user ? `Đã đăng nhập ${Cloud.user.email}: đề và dữ liệu ôn tập được lưu lên tài khoản.`
+    : 'Chưa đăng nhập: dữ liệu chỉ lưu trên trình duyệt này.';
+  if (!Cloud.ready) return;
+  if (!Cloud.user) { b.innerHTML = '☁<span class="lbl"> Đăng nhập</span>'; b.title = 'Đăng nhập Google để đồng bộ dữ liệu giữa các thiết bị'; return; }
+  const txt = {idle: 'Đã đồng bộ', saving: 'Đang lưu…', offline: 'Offline, sẽ đồng bộ sau', error: 'Lỗi đồng bộ'}[Cloud.sync];
+  b.innerHTML = `<span class="sync-${Cloud.sync}">☁<span class="lbl"> ${txt}</span></span>`;
+  b.title = `${txt} · ${Cloud.user.email} · bấm để đăng xuất`;
+}
+function setSyncState(st){ Cloud.sync = st; renderAuth(); }
+function showHome(){ show('home'); renderHome(); }
+function renderHome(){
+  if (view !== 'home') return;
+  $('#homeWho').textContent = Cloud.user ? `Đồng bộ với ${Cloud.user.email}` : '';
+  const q = Cloud.quiz, ex = Cloud.exams.find(e => e.id === q?.examId);
+  $('#homeResume').innerHTML = q && ex ? `<div class="banner"><div class="stats"><span>Bài đang làm dở: <b>${esc(ex.name.replace(/\.json$/i, ''))}</b></span>
+    <span>Lưu lúc ${fmtDate(q.savedAt)}</span></div><div class="acts"><button class="btn primary" data-open="${esc(q.examId)}" data-resume="1">Tiếp tục làm</button></div></div>` : '';
+  if (!Cloud.listReady) { $('#homeList').innerHTML = '<div class="home-empty">Đang tải danh sách đề…</div>'; return; }
+  if (!Cloud.exams.length) { $('#homeList').innerHTML = '<div class="home-empty">Chưa có đề nào.<br>Bấm <b>+ Thêm đề</b> hoặc kéo thả file JSON vào đây. Đề sẽ được lưu lên tài khoản để mở trên máy khác.</div>'; return; }
+  $('#homeList').innerHTML = '<div class="exams">' + Cloud.exams.map(e => {
+    const pct = e.total ? Math.round(e.correct / e.total * 100) : 0, rp = e.wrong ? Math.round(e.reviewedWrong / e.wrong * 100) : 100;
+    const la = e.lastAttempt ? ` · gần nhất ${Math.round(e.lastAttempt.correct / e.lastAttempt.total * 100)}%` : '';
+    return `<div class="exam" tabindex="0" role="button" data-open="${esc(e.id)}">
+      <h3>${esc((e.name || 'Đề').replace(/\.json$/i, ''))}</h3>
+      <div class="sc"><b>${pct}%</b><span>${e.correct}/${e.total} câu đúng (bài gốc)</span></div>
+      <div class="row">Đã chữa <b>${e.reviewedWrong || 0}/${e.wrong || 0}</b> câu sai</div>
+      <div class="bar"><i style="width:${rp}%"></i></div>
+      <div class="row"><b>${e.notes || 0}</b> ghi chú · <b>${e.attempts || 0}</b> lượt làm lại${la}</div>
+      <div class="foot"><span>Mở lúc ${e.openedAt ? fmtDate(e.openedAt) : '—'}</span><button class="del" data-del="${esc(e.id)}" title="Xóa đề này khỏi tài khoản">Xóa</button></div>
+    </div>`;
+  }).join('') + '</div>';
+}
+async function openCloudExam(id, resume){
+  if (id === fileId && Q.length) { showFileReview(); Cloud.openExam(null); if (resume) resumeQuiz(); return; }
+  toast('Đang tải đề…');
+  try {
+    const r = await Cloud.fetchExam(id);
+    if (load(r.text, r.name) && resume) resumeQuiz();
+  } catch (e) { toast('Không tải được đề: ' + (e.code || e.message)); }
+}
+$('#home').onclick = e => {
+  const del = e.target.closest('[data-del]');
+  if (del) { const ex = Cloud.exams.find(x => x.id === del.dataset.del);
+    if (confirm(`Xóa đề "${ex?.name}" cùng toàn bộ ghi chú, câu đã chữa và lịch sử làm lại khỏi tài khoản?`)) Cloud.deleteExam(del.dataset.del);
+    return; }
+  const o = e.target.closest('[data-open]'); if (o) openCloudExam(o.dataset.open, !!o.dataset.resume);
+};
+$('#home').onkeydown = e => { if (e.key === 'Enter' && e.target.matches('.exam')) e.target.click(); };
+$('#homeAdd').onclick = () => { $('#file').value = ''; $('#file').click(); };
+$('#btnHome').onclick = () => { flushNotes(); Cloud.flush?.(); showHome(); };
+const signIn = () => Cloud.signIn?.();
+$('#dropAuth').onclick = signIn;
+$('#btnAuth').onclick = () => {
+  if (!Cloud.user) return signIn();
+  if (confirm(`Đăng xuất ${Cloud.user.email}?\nDữ liệu vẫn giữ trên tài khoản; trình duyệt này quay về chế độ lưu cục bộ.`)) Cloud.signOut();
+};
 
 /* ---------- Header / upload ---------- */
 $('#pick').onclick = () => $('#file').click();
@@ -912,6 +1052,178 @@ show('drop');
 store.del('ev-hist');
 const saved = store.get('ev-file', null);
 if (saved && load(saved.text, saved.name, {restoring: true})) restoreQuiz();
+</script>
+
+<script type="module">
+// Đồng bộ qua Firebase (Firestore + đăng nhập Google). Cấu hình web của Firebase được phép công khai;
+// quyền truy cập do Firestore Security Rules quyết định: chỉ tài khoản ALLOWED đọc/ghi được users/{uid}/**
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc,
+  deleteDoc, writeBatch, onSnapshot, query, orderBy, deleteField } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+
+const ALLOWED = 'ngxuangiang2020@gmail.com';
+const CHUNK = 300000; // ký tự/doc câu hỏi, dưới giới hạn 1 MiB/doc kể cả ký tự nhiều byte
+const app = initializeApp({
+  apiKey: 'AIzaSyBUoA6YTkGEoiFkRhnzaGYkVq6YzWm1A6U',
+  authDomain: 'exam-viewer-fae56.firebaseapp.com',
+  projectId: 'exam-viewer-fae56',
+  storageBucket: 'exam-viewer-fae56.firebasestorage.app',
+  messagingSenderId: '548035235346',
+  appId: '1:548035235346:web:505208ef28fbb7085092cb'
+});
+const auth = getAuth(app);
+const db = initializeFirestore(app, {ignoreUndefinedProperties: true,
+  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})});
+
+let listSubs = [], examSubs = [], openedId = null, flushTimer = null, quizTimer = null, inflight = 0;
+const pend = new Set(); // 'r:<no>' | 'n:<no>' đang chờ đẩy lên
+const ref = (...p) => doc(db, 'users', Cloud.user.uid, ...p);
+const col = (...p) => collection(db, 'users', Cloud.user.uid, ...p);
+const stop = arr => { arr.forEach(f => f()); arr.length = 0; };
+const idle = () => setSyncState(navigator.onLine ? 'idle' : 'offline');
+const onErr = e => { console.error(e); setSyncState('error'); toast('Lỗi đồng bộ: ' + (e.code || e.message)); };
+// Promise ghi của Firestore chỉ xong khi server xác nhận; offline thì treo đến khi có mạng
+function track(p){
+  inflight++; setSyncState(navigator.onLine ? 'saving' : 'offline');
+  return p.catch(onErr).finally(() => { if (--inflight === 0 && Cloud.sync !== 'error') idle(); });
+}
+addEventListener('online', () => inflight ? setSyncState('saving') : idle());
+addEventListener('offline', () => setSyncState('offline'));
+
+function metaFields(){
+  const wrong = Q.filter(q => q.ok !== true), last = D.attempts[0];
+  return {name: fileName, total: Q.length, correct: Q.length - wrong.length, wrong: wrong.length,
+    reviewedWrong: wrong.filter(q => D.reviewed[q.no]).length, notes: Object.keys(D.notes).length, attempts: D.attempts.length,
+    lastAttempt: last ? {at: last.at, correct: last.items.filter(x => x.ok).length, total: last.items.length} : null,
+    updatedAt: Date.now()};
+}
+
+// Mở một đề: cloud là nguồn chính; giữ thêm dữ liệu trên máy mới hơn lần cập nhật cloud cuối (làm lúc offline/chưa đăng nhập)
+// và dữ liệu từ file export vừa import (inc)
+Cloud.openExam = inc => {
+  if (!Cloud.user || !fileId) return;
+  const id = fileId; openedId = id; stop(examSubs);
+  return track((async () => {
+    const [m, p, a] = await Promise.all([getDoc(ref('exams', id)), getDoc(ref('exams', id, 'data', 'progress')), getDocs(col('exams', id, 'attempts'))]);
+    if (openedId !== id) return;
+    let merged;
+    if (!m.exists()) {
+      const s = JSON.stringify(Q.map(q => q.src)), n = Math.ceil(s.length / CHUNK) || 1, b = writeBatch(db);
+      for (let i = 0; i < n; i++) b.set(ref('exams', id, 'data', 'q' + i), {part: s.slice(i * CHUNK, (i + 1) * CHUNK)});
+      b.set(ref('exams', id), {chunks: n, createdAt: Date.now()}, {merge: true});
+      await b.commit();
+      merged = {reviewed: {...D.reviewed}, notes: {...D.notes}, attempts: [...D.attempts]};
+    } else {
+      const pd = p.data() || {}, since = pd.updatedAt || 0;
+      const keep = (o, t) => Object.fromEntries(Object.entries(o).filter(([, v]) => t(v) > since));
+      merged = mergeData({reviewed: {...(pd.reviewed || {}), ...keep(D.reviewed, v => v)}, notes: pd.notes || {}, attempts: a.docs.map(x => x.data())},
+                         {reviewed: {}, notes: keep(D.notes, v => v.at), attempts: D.attempts});
+      if (inc) merged = mergeData(merged, inc);
+    }
+    if (openedId !== id) return;
+    applyCloudData(merged);
+    const have = new Set(a.docs.map(x => x.id)), b = writeBatch(db);
+    b.set(ref('exams', id, 'data', 'progress'), {reviewed: D.reviewed, notes: D.notes, updatedAt: Date.now()});
+    D.attempts.filter(x => !have.has(x.id)).forEach(x => b.set(ref('exams', id, 'attempts', x.id), x));
+    b.set(ref('exams', id), {...metaFields(), openedAt: Date.now()}, {merge: true});
+    await b.commit();
+    if (openedId === id) subscribeExam(id);
+  })());
+};
+
+function subscribeExam(id){
+  stop(examSubs);
+  examSubs.push(onSnapshot(ref('exams', id, 'data', 'progress'), s => {
+    if (openedId !== id || fileId !== id || !s.exists()) return;
+    const pd = s.data(), r = {...(pd.reviewed || {})}, n = {...(pd.notes || {})};
+    pend.forEach(k => { const no = k.slice(2), [src, dst] = k[0] === 'r' ? [D.reviewed, r] : [D.notes, n];
+      if (src[no]) dst[no] = src[no]; else delete dst[no]; });
+    Object.entries(D.notes).forEach(([no, x]) => { if (n[no] && x.at > n[no].at) n[no] = x; });
+    if (JSON.stringify(r) === JSON.stringify(D.reviewed) && JSON.stringify(n) === JSON.stringify(D.notes)) return;
+    applyCloudData({...D, reviewed: r, notes: n});
+  }, onErr));
+  examSubs.push(onSnapshot(col('exams', id, 'attempts'), s => {
+    if (openedId !== id || fileId !== id) return;
+    const have = new Set(D.attempts.map(x => x.id)), add = s.docs.map(x => x.data()).filter(x => !have.has(x.id));
+    if (add.length) applyCloudData({...D, attempts: [...D.attempts, ...add].sort((x, y) => y.at - x.at)});
+  }, onErr));
+}
+
+// Chỉ ghi các câu vừa đổi (merge sâu) thay vì cả doc, để 2 thiết bị sửa câu khác nhau không đè nhau;
+// merge cũng chạy được khi doc progress chưa kịp tạo xong
+Cloud.flush = () => {
+  clearTimeout(flushTimer); flushTimer = null;
+  if (!Cloud.user || !openedId || !pend.size) return;
+  const patch = {reviewed: {}, notes: {}, updatedAt: Date.now()};
+  pend.forEach(k => { const no = k.slice(2), v = k[0] === 'r' ? D.reviewed[no] : D.notes[no];
+    patch[k[0] === 'r' ? 'reviewed' : 'notes'][no] = v ?? deleteField(); });
+  pend.clear();
+  track(setDoc(ref('exams', openedId, 'data', 'progress'), patch, {merge: true}));
+  track(setDoc(ref('exams', openedId), metaFields(), {merge: true}));
+};
+const queue = k => { if (!Cloud.user || openedId !== fileId) return; pend.add(k); clearTimeout(flushTimer); flushTimer = setTimeout(Cloud.flush, 800); };
+Cloud.markReviewed = no => queue('r:' + no);
+Cloud.setNote = no => queue('n:' + no);
+Cloud.addAttempt = a => {
+  if (!Cloud.user || openedId !== fileId) return;
+  track(setDoc(ref('exams', openedId, 'attempts', a.id), a));
+  track(setDoc(ref('exams', openedId), metaFields(), {merge: true}));
+};
+Cloud.saveQuiz = st => {
+  if (!Cloud.user) return;
+  clearTimeout(quizTimer);
+  quizTimer = setTimeout(() => track(setDoc(ref('state', 'quiz'), {examId: st.fileId, savedAt: st.savedAt, data: JSON.stringify(st)})), 1500);
+};
+Cloud.clearQuiz = () => { clearTimeout(quizTimer); if (Cloud.user) track(deleteDoc(ref('state', 'quiz'))); };
+
+Cloud.fetchExam = async id => {
+  const m = await getDoc(ref('exams', id));
+  if (!m.exists()) throw new Error('Đề không còn trên tài khoản');
+  const parts = await Promise.all(Array.from({length: m.data().chunks || 1}, (_, i) => getDoc(ref('exams', id, 'data', 'q' + i))));
+  return {name: m.data().name, text: parts.map(x => x.data()?.part || '').join('')};
+};
+Cloud.deleteExam = id => track((async () => {
+  const [m, a] = await Promise.all([getDoc(ref('exams', id)), getDocs(col('exams', id, 'attempts'))]);
+  const b = writeBatch(db);
+  for (let i = 0; i < (m.data()?.chunks || 1); i++) b.delete(ref('exams', id, 'data', 'q' + i));
+  b.delete(ref('exams', id, 'data', 'progress'));
+  a.docs.forEach(x => b.delete(x.ref));
+  b.delete(ref('exams', id));
+  if (Cloud.quiz?.examId === id) b.delete(ref('state', 'quiz'));
+  await b.commit();
+  store.del('ev-data:' + id);
+  toast('Đã xóa đề');
+})());
+
+Cloud.signIn = async () => {
+  try {
+    const p = new GoogleAuthProvider();
+    p.setCustomParameters({prompt: 'select_account', login_hint: ALLOWED});
+    await signInWithPopup(auth, p);
+  } catch (e) {
+    if (e.code === 'auth/popup-blocked') toast('Trình duyệt chặn cửa sổ đăng nhập, hãy cho phép popup cho trang này');
+    else if (!['auth/popup-closed-by-user', 'auth/cancelled-popup-request'].includes(e.code)) toast('Đăng nhập lỗi: ' + e.code);
+  }
+};
+Cloud.signOut = async () => { Cloud.flush(); await signOut(auth); };
+
+onAuthStateChanged(auth, async u => {
+  if (u && u.email !== ALLOWED) { toast(`Tài khoản ${u.email} không có quyền đồng bộ`); await signOut(auth); return; }
+  stop(listSubs); stop(examSubs); openedId = null; pend.clear();
+  Object.assign(Cloud, {ready: true, user: u, exams: [], listReady: false, quiz: null});
+  idle();
+  if (!u) { if (view === 'home') show('drop'); return; }
+  listSubs.push(onSnapshot(query(col('exams'), orderBy('openedAt', 'desc')), s => {
+    Cloud.exams = s.docs.map(x => ({id: x.id, ...x.data()})); Cloud.listReady = true; renderHome();
+  }, onErr));
+  listSubs.push(onSnapshot(ref('state', 'quiz'), s => {
+    Cloud.quiz = s.exists() ? s.data() : null; renderHome();
+    if (view === 'review' && RV.ctx?.kind === 'file') $('#rvBanner').innerHTML = bannerHTML();
+  }, onErr));
+  if (fileId && Q.length) Cloud.openExam(null);
+  if (view === 'drop') showHome();
+});
 </script>
 </body>
 </html>
