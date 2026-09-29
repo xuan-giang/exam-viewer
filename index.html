@@ -110,6 +110,36 @@ button.opt:disabled:hover{border-color:var(--border)}
 .opt.multi .k{border-radius:6px}
 .opt .t{flex:1;min-width:0;padding-top:1px;overflow-wrap:anywhere}
 .qt{overflow-wrap:anywhere}
+
+/* Ghi chú */
+.grid .noted::after{content:"";position:absolute;top:3px;left:3px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.qbody{min-width:0}
+.note{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.note label{font-size:13px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
+.note label span{font-weight:400;color:var(--muted);font-size:12px}
+.note textarea{width:100%;min-height:96px;resize:vertical;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text);font:inherit;font-size:14px;line-height:1.55;overflow:hidden}
+.note textarea:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.note.has textarea{background:var(--accent-bg);border-color:transparent}
+.note.has textarea:focus{background:var(--surface);border-color:var(--accent)}
+#review.wide{max-width:1440px}
+@media (min-width:1180px){
+  .q.wn{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px}
+  .q.wn .note{margin-top:0;position:sticky;top:76px;align-self:start}
+}
+
+/* Màn tổng hợp ghi chú */
+#notes{max-width:900px;margin:0 auto;padding:16px}
+.nt-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.nt-head h2{margin:0;font-size:20px;flex:1;min-width:160px}
+.nt-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.nt-tools input{flex:1;min-width:180px}
+.nt-tools .seg{margin:0}
+.nt-empty{text-align:center;color:var(--muted);padding:48px 16px;background:var(--surface);border:1px dashed var(--border);border-radius:12px}
+.nq{color:var(--muted);font-size:14px;margin:0 0 8px;white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.nq.open{display:block;-webkit-line-clamp:unset}
+.nans{font-size:14px;margin:0 0 4px;overflow-wrap:anywhere}
+.nans b{color:var(--ok)}
+.nans.bad b{color:var(--bad)}
 .opt .m{flex:none;font-size:12px;font-weight:600;padding-top:4px;white-space:nowrap}
 .opt.sel{border-color:var(--accent);background:var(--accent-bg)}
 .opt.sel .k{background:var(--accent);color:#fff}
@@ -160,7 +190,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   header h1 .full{display:none}
   header{gap:6px;padding:10px 12px}
   header .btn{padding:6px 9px}
-  #btnPractice{display:none!important}
+  #btnPractice,#btnNotes{display:none!important}
   .banner{padding:14px}
 }
 </style>
@@ -172,6 +202,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <span id="timer" hidden></span>
   <button class="btn" id="navToggle">Câu hỏi</button>
   <button class="btn primary" id="btnPractice" hidden>Làm lại bài</button>
+  <button class="btn" id="btnNotes" hidden title="Xem tổng hợp các ghi chú">Ghi chú</button>
   <button class="btn" id="btnExport" hidden title="Tải về file JSON gồm câu hỏi, câu đã chữa và lịch sử làm lại">Export</button>
   <button class="btn" id="btnReload" hidden title="Mở file đề hoặc file đã export">Mở file</button>
   <button class="btn" id="theme" title="Đổi giao diện sáng/tối">◐</button>
@@ -189,7 +220,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 </section>
 
 <!-- Review (file gốc hoặc kết quả lần làm) -->
-<div class="layout" id="review" hidden>
+<div class="layout wide" id="review" hidden>
   <aside class="side">
     <div class="score"><b id="rvPct"></b><span id="rvTotal"></span></div>
     <div class="bar"><i id="rvBar"></i></div>
@@ -212,6 +243,23 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <div id="rvList"></div>
   </main>
 </div>
+
+<!-- Tổng hợp ghi chú -->
+<section id="notes" hidden>
+  <div class="nt-head">
+    <h2>Ghi chú ôn tập <span id="ntCount" style="color:var(--muted);font-weight:500"></span></h2>
+    <button class="btn" id="ntMd" title="Tải tất cả ghi chú về dạng Markdown">Tải .md</button>
+    <button class="btn primary" id="ntBack">← Về bài</button>
+  </div>
+  <div class="nt-tools">
+    <input type="search" id="ntSearch" placeholder="Tìm trong ghi chú và câu hỏi…">
+    <div class="seg" id="ntSort">
+      <button data-s="no" class="on">Theo số câu</button>
+      <button data-s="new">Mới sửa</button>
+    </div>
+  </div>
+  <div id="ntList"></div>
+</section>
 
 <!-- Quiz -->
 <div class="layout" id="quiz" hidden>
@@ -302,8 +350,8 @@ const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33
 
 // Q: câu hỏi của đề; D: dữ liệu ôn tập của đề (lưu theo fileId = băm nội dung câu hỏi)
 let Q = [], byNo = new Map(), fileName = '', fileId = '', view = 'drop';
-let D = {reviewed: {}, attempts: []};
-const EXTRA = ['reviewed', 'reviewed_at', 'retry_stats'];
+let D = {reviewed: {}, notes: {}, attempts: []};
+const EXTRA = ['reviewed', 'reviewed_at', 'retry_stats', 'note', 'note_updated_at'];
 
 /* ---------- Dữ liệu ôn tập ---------- */
 const dataKey = () => 'ev-data:' + fileId;
@@ -333,9 +381,11 @@ function normalize(raw){
 }
 // Đọc dữ liệu ôn tập có trong file export
 function importedData(raw){
-  const out = {reviewed: {}, attempts: []};
+  const out = {reviewed: {}, notes: {}, attempts: []};
   (Array.isArray(raw) ? raw : raw.questions || []).forEach((q, i) => {
-    if (q.reviewed === true) out.reviewed[String(q.question_no ?? i + 1)] = q.reviewed_at ? Date.parse(q.reviewed_at) || Date.now() : Date.now();
+    const no = String(q.question_no ?? i + 1);
+    if (q.reviewed === true) out.reviewed[no] = q.reviewed_at ? Date.parse(q.reviewed_at) || Date.now() : Date.now();
+    if (typeof q.note === 'string' && q.note.trim()) out.notes[no] = {text: q.note, at: Date.parse(q.note_updated_at) || Date.now()};
   });
   (Array.isArray(raw?.attempts) ? raw.attempts : []).forEach(a => {
     const items = (a.answers || []).filter(x => byNo.has(String(x.question_no))).map(x => {
@@ -353,26 +403,30 @@ function importedData(raw){
 }
 function mergeData(a, b){
   const ids = new Set(a.attempts.map(x => x.id));
-  return {reviewed: {...b.reviewed, ...a.reviewed},
+  const notes = {...a.notes};
+  Object.entries(b.notes || {}).forEach(([no, n]) => { if (!notes[no] || n.at > notes[no].at) notes[no] = n; });
+  return {reviewed: {...b.reviewed, ...a.reviewed}, notes,
           attempts: [...a.attempts, ...b.attempts.filter(x => !ids.has(x.id))].sort((x, y) => y.at - x.at)};
 }
 
 function load(text, name, {restoring} = {}){
   try {
     const raw = JSON.parse(text);
+    flushNotes();
     Q = normalize(raw); fileName = name;
     byNo = new Map(Q.map(q => [q.no, q]));
     fileId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
     D = store.get(dataKey(), null) || {reviewed: {}, attempts: []};
+    D.notes ||= {};
     if (!restoring) {
-      const inc = importedData(raw), nInc = Object.keys(inc.reviewed).length + inc.attempts.length;
-      const nHave = Object.keys(D.reviewed).length + D.attempts.length;
+      const inc = importedData(raw), nInc = Object.keys(inc.reviewed).length + Object.keys(inc.notes).length + inc.attempts.length;
+      const nHave = Object.keys(D.reviewed).length + Object.keys(D.notes).length + D.attempts.length;
       if (nInc) {
         const before = D.attempts.length;
         D = mergeData(D, inc); saveData();
-        toast(nHave ? `Đã gộp dữ liệu: ${Object.keys(D.reviewed).length} câu đã chữa, ${D.attempts.length - before} lượt làm mới`
-                    : `Đã nhập ${Object.keys(inc.reviewed).length} câu đã chữa, ${inc.attempts.length} lượt làm`);
-      } else if (nHave) toast(`Đã khôi phục ${Object.keys(D.reviewed).length} câu đã chữa, ${D.attempts.length} lượt làm của đề này`);
+        toast(nHave ? `Đã gộp dữ liệu: ${Object.keys(D.reviewed).length} câu đã chữa, ${Object.keys(D.notes).length} ghi chú, ${D.attempts.length - before} lượt làm mới`
+                    : `Đã nhập ${Object.keys(inc.reviewed).length} câu đã chữa, ${Object.keys(inc.notes).length} ghi chú, ${inc.attempts.length} lượt làm`);
+      } else if (nHave) toast(`Đã khôi phục ${Object.keys(D.reviewed).length} câu đã chữa, ${Object.keys(D.notes).length} ghi chú, ${D.attempts.length} lượt làm của đề này`);
       // chỉ giữ câu hỏi trong bản lưu file, dữ liệu ôn tập nằm ở ev-data
       store.set('ev-file', {name, text: JSON.stringify(Q.map(q => q.src))});
     }
@@ -391,7 +445,8 @@ function exportData(){
     questions: Q.map(q => {
       const s = ST[q.no];
       return {...q.src, reviewed: isFixed(q), reviewed_at: isFixed(q) ? iso(D.reviewed[q.no]) : null,
-              retry_stats: {times: s?.times || 0, correct: s?.correct || 0}};
+              retry_stats: {times: s?.times || 0, correct: s?.correct || 0},
+              note: D.notes[q.no]?.text || '', note_updated_at: D.notes[q.no] ? iso(D.notes[q.no].at) : null};
     }),
     attempts: D.attempts.map(a => ({
       id: a.id, started_at: iso(a.startedAt), finished_at: iso(a.at), mode: a.mode,
@@ -401,19 +456,17 @@ function exportData(){
         selected_answer: x.pick.join(', '), correct_answer: byNo.get(x.no)?.cor.join(', '), is_correct: x.ok}))
     }))
   };
-  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = fileName.replace(/(_on_tap)?\.json$/i, '') + '_on_tap.json';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast('Đã export ' + a.download);
+  download(JSON.stringify(out, null, 2), fileName.replace(/(_on_tap)?\.json$/i, '') + '_on_tap.json', 'application/json');
 }
 
 function show(v){
   view = v;
-  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz';
-  $('#btnPractice').hidden = $('#btnReload').hidden = $('#btnExport').hidden = v !== 'review';
+  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes';
+  $('#btnPractice').hidden = $('#btnNotes').hidden = v !== 'review';
+  $('#btnReload').hidden = $('#btnExport').hidden = v !== 'review' && v !== 'notes';
+  $('#navToggle').hidden = v === 'notes';
+  updateNotesBtn();
+  autosizeAll();
   $('#timer').hidden = v !== 'quiz';
   $$('.side').forEach(s => s.classList.remove('open'));
   window.scrollTo(0, 0);
@@ -441,6 +494,10 @@ function statusTag(it){
   if (it.ok === false) return it.pick.length ? '<span class="tag bad">Sai</span>' : '<span class="tag bad">Bỏ trống</span>';
   return '';
 }
+const noteMeta = n => n ? 'Lưu lúc ' + fmtDate(n.at) : 'Tự lưu khi gõ';
+const noteBox = q => { const n = D.notes[q.no];
+  return `<div class="note${n ? ' has' : ''}"><label>Ghi chú <span data-note-meta="${esc(q.no)}">${noteMeta(n)}</span></label>
+    <textarea data-note="${esc(q.no)}" placeholder="Vì sao sai, kiến thức cần nhớ, link tài liệu…">${esc(n?.text || '')}</textarea></div>`; };
 const fixBtn = q => `<button class="btn sm${isFixed(q) ? ' fixed-on' : ''}" data-fix="${esc(q.no)}" title="${isFixed(q) ? 'Chữa lúc ' + fmtDate(D.reviewed[q.no]) + ' · bấm để bỏ' : 'Đánh dấu là đã chữa câu này'}">${isFixed(q) ? '✓ Đã chữa' : '☐ Đánh dấu đã chữa'}</button>`;
 function statTag(q){
   const s = ST[q.no]; if (!s) return '';
@@ -468,8 +525,10 @@ function bannerHTML(){
   const c = RV.ctx;
   if (c.kind === 'file') return `<div class="big">${pct}%</div>
     <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${total - nOk}</b></span>${fixInfo}
-      ${D.attempts.length ? `<span>Đã làm lại <b>${D.attempts.length}</b> lượt</span>` : ''}</div>
+      ${D.attempts.length ? `<span>Đã làm lại <b>${D.attempts.length}</b> lượt</span>` : ''}
+      ${Object.keys(D.notes).length ? `<span>Ghi chú <b>${Object.keys(D.notes).length}</b> câu</span>` : ''}</div>
     <div class="acts"><button class="btn primary" data-act="setup">Làm lại bài</button>
+    <button class="btn" data-act="notes">Ghi chú${Object.keys(D.notes).length ? ` (${Object.keys(D.notes).length})` : ''}</button>
     ${wrong.length ? '<button class="btn" data-act="wrong">Làm lại câu sai</button>' : ''}
     ${wrong.length - wrongFixed && wrongFixed ? '<button class="btn" data-act="wrongTodo">Làm câu sai chưa chữa</button>' : ''}</div>`;
   const a = c.attempt;
@@ -481,7 +540,7 @@ function bannerHTML(){
     <button class="btn" data-act="setup">Cài đặt mới</button>
     <button class="btn" data-act="file">Về bài gốc</button></div>`;
 }
-function gridCls(it){ return (it.ok === true ? 'ok' : it.ok === false ? 'bad' : '') + (isFixed(it.q) ? ' fixed' : ''); }
+function gridCls(it){ return (it.ok === true ? 'ok' : it.ok === false ? 'bad' : '') + (isFixed(it.q) ? ' fixed' : '') + (D.notes[it.q.no] ? ' noted' : ''); }
 
 function renderReview(){
   ST = stats();
@@ -507,15 +566,16 @@ function renderReview(){
   $('#rvList').innerHTML = items.map((it, i) => {
     const multi = it.q.cor.length > 1;
     const num = c.kind === 'file' ? esc(it.q.no) : i + 1;
-    return `<article class="q" id="rv${i}" data-i="${i}">
+    return `<article class="q wn" id="rv${i}" data-i="${i}"><div class="qbody">
       <div class="qh"><span class="qn">Câu ${num}</span>${statusTag(it)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
         ${c.kind !== 'file' ? `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>` : statTag(it.q)}
         <span class="sp"></span>${fixBtn(it.q)}</div>
       <p class="qt">${esc(it.q.question).trim()}</p>
       <div class="opts">${optsHTML(it, {reveal: true})}</div>
       <div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>
-    </article>`;
+    </div>${noteBox(it.q)}</article>`;
   }).join('');
+  $$('#rvList textarea[data-note]').forEach(autosize);
   applyFilter(); observe();
 }
 
@@ -534,6 +594,80 @@ function toggleFixed(no){
   $('#rvLegend').lastElementChild.innerHTML = `<b style="color:var(--ok)">✓</b> ${RV.items.filter(x => isFixed(x.q)).length} đã chữa`;
   applyFilter();
 }
+
+/* ---------- Ghi chú ---------- */
+function autosize(t){ t.style.height = 'auto'; t.style.height = Math.max(96, t.scrollHeight + 2) + 'px'; }
+// Chiều cao chỉ đo được khi ô đang hiển thị, nên đo lại sau khi đổi màn hình hoặc đổi kích thước cửa sổ
+function autosizeAll(){ $$('textarea[data-note]').forEach(t => t.offsetParent && autosize(t)); }
+let rsTimer; window.addEventListener('resize', () => { clearTimeout(rsTimer); rsTimer = setTimeout(autosizeAll, 150); });
+let noteTimer;
+function setNote(no, text){
+  if (text.trim()) D.notes[no] = {text, at: Date.now()}; else delete D.notes[no];
+  clearTimeout(noteTimer); noteTimer = setTimeout(flushNotes, 400);
+  const n = D.notes[no], sel = CSS.escape(no);
+  $$(`[data-note-meta="${sel}"]`).forEach(m => m.textContent = n ? 'Đã lưu' : 'Tự lưu khi gõ');
+  $$(`textarea[data-note="${sel}"]`).forEach(t => t.closest('.note').classList.toggle('has', !!n));
+  RV.items.forEach((it, i) => { if (it.q.no === no) $(`#rvGrid [data-i="${i}"]`)?.classList.toggle('noted', !!n); });
+  updateNotesBtn();
+}
+function updateNotesBtn(){ const n = Object.keys(D.notes).length; $('#btnNotes').textContent = n ? `Ghi chú (${n})` : 'Ghi chú'; }
+document.addEventListener('input', e => { const t = e.target.closest('textarea[data-note]'); if (!t) return; autosize(t); setNote(t.dataset.note, t.value); });
+// Ghi chú lưu trễ 400ms khi gõ; flush trước khi rời trang hoặc mở file khác để không mất chữ vừa gõ
+function flushNotes(){ if (!noteTimer) return; clearTimeout(noteTimer); noteTimer = null; saveData(); }
+window.addEventListener('beforeunload', flushNotes);
+
+let NT = {sort: 'no', term: ''};
+function showNotes(){ NT.term = ''; $('#ntSearch').value = ''; show('notes'); renderNotes(); }
+function renderNotes(){
+  const t = NT.term.toLowerCase();
+  let list = Q.filter(q => D.notes[q.no]);
+  $('#ntCount').textContent = `(${list.length})`;
+  if (t) list = list.filter(q => (D.notes[q.no].text + ' ' + q.question + ' ' + Object.values(q.answers).join(' ')).toLowerCase().includes(t));
+  if (NT.sort === 'new') list.sort((a, b) => D.notes[b.no].at - D.notes[a.no].at);
+  const ansLine = (q, ks) => ks.map(k => `${esc(k)}. ${esc(q.answers[k])}`).join('<br>') || '—';
+  $('#ntList').innerHTML = !Object.keys(D.notes).length
+    ? '<div class="nt-empty">Chưa có ghi chú nào.<br>Gõ vào ô <b>Ghi chú</b> cạnh mỗi câu hỏi để bắt đầu.</div>'
+    : !list.length ? '<div class="nt-empty">Không có ghi chú khớp với từ khóa.</div>'
+    : list.map(q => `<article class="q">
+      <div class="qh"><span class="qn">Câu ${esc(q.no)}</span>${statusTag({ok: q.ok, pick: q.sel})}${isFixed(q) ? '<span class="tag ok">✓ Đã chữa</span>' : ''}
+        <span class="sp"></span><button class="btn sm" data-goto="${esc(q.no)}">Mở câu này →</button></div>
+      <p class="nq" title="Bấm để xem đầy đủ">${esc(q.question).trim()}</p>
+      <p class="nans">Đáp án đúng: <b>${ansLine(q, q.cor)}</b></p>
+      ${q.ok === false && q.sel.length ? `<p class="nans bad">Bạn đã chọn: <b>${ansLine(q, q.sel)}</b></p>` : ''}
+      ${noteBox(q)}</article>`).join('');
+  $$('#ntList textarea[data-note]').forEach(autosize);
+}
+function notesMarkdown(){
+  const out = [`# Ghi chú ôn tập: ${fileName}`, '', `Xuất lúc ${fmtDate(Date.now())} · ${Object.keys(D.notes).length} ghi chú`, ''];
+  Q.filter(q => D.notes[q.no]).forEach(q => {
+    const st = [q.ok === true ? 'Đúng' : q.ok === false ? 'Sai' : '', isFixed(q) ? 'Đã chữa' : ''].filter(Boolean).join(' · ');
+    out.push(`## Câu ${q.no}${st ? ` (${st})` : ''}`, '', q.question.trim().split('\n').map(l => '> ' + l).join('\n'), '');
+    q.cor.forEach(k => out.push(`- **Đáp án đúng ${k}:** ${q.answers[k]}`));
+    if (q.ok === false) q.sel.forEach(k => out.push(`- Đã chọn ${k}: ${q.answers[k]}`));
+    out.push('', '**Ghi chú:**', '', D.notes[q.no].text.trim(), '', '---', '');
+  });
+  return out.join('\n');
+}
+function download(text, name, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type}));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Đã tải ' + name);
+}
+$('#ntSearch').oninput = e => { NT.term = e.target.value.trim(); renderNotes(); };
+$('#ntSort').onclick = e => { const b = e.target.closest('button'); if (!b) return; NT.sort = b.dataset.s;
+  $$('#ntSort button').forEach(x => x.classList.toggle('on', x === b)); renderNotes(); };
+$('#ntList').onclick = e => {
+  const q = e.target.closest('.nq'); if (q) return q.classList.toggle('open');
+  const no = e.target.closest('[data-goto]')?.dataset.goto; if (!no) return;
+  if (RV.ctx?.kind !== 'file') showFileReview(); else { renderReview(); show('review'); }
+  const i = RV.items.findIndex(it => it.q.no === no);
+  requestAnimationFrame(() => goReview(i));
+};
+$('#ntBack').onclick = () => { renderReview(); show('review'); };
+$('#ntMd').onclick = () => { if (!Object.keys(D.notes).length) return toast('Chưa có ghi chú để tải');
+  download(notesMarkdown(), fileName.replace(/(_on_tap)?\.json$/i, '') + '_ghi_chu.md', 'text/markdown'); };
 
 function applyFilter(){
   const t = RV.term.toLowerCase();
@@ -578,6 +712,7 @@ $('#rvBanner').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return;
   if (a === 'setup') openSetup();
   if (a === 'file') showFileReview();
+  if (a === 'notes') showNotes();
   if (a === 'wrong') startQuiz(pool('wrong'), {...lastCfg(), count: 'all'});
   if (a === 'wrongTodo') startQuiz(pool('todo'), {...lastCfg(), count: 'all'});
   if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
@@ -765,6 +900,7 @@ $('#file').onchange = e => readFile(e.target.files[0]);
 $('#btnReload').onclick = () => { $('#file').value = ''; $('#file').click(); };
 $('#btnPractice').onclick = openSetup;
 $('#btnExport').onclick = exportData;
+$('#btnNotes').onclick = showNotes;
 ['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.add('over'); }));
 ['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.remove('over'); }));
 document.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
