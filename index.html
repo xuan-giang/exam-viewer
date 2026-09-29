@@ -70,6 +70,13 @@ input[type=search],input[type=number]{padding:7px 10px;border:1px solid var(--bo
 .grid .bad{background:var(--bad-bg);color:var(--bad)}
 .grid .done{background:var(--accent-bg);color:var(--accent)}
 .grid .flag::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.grid .fixed::before{content:"✓";position:absolute;right:2px;bottom:0;font-size:10px;line-height:1.2;color:var(--ok)}
+.grid .fixed{box-shadow:inset 0 -2px 0 var(--ok)}
+.btn.sm{padding:3px 10px;font-size:13px}
+.btn.fixed-on{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.hist .scroll{max-height:220px;overflow:auto}
+.hist td:last-child{text-align:right}
+.hist button{border:0;background:none;color:var(--accent);font-size:13px;padding:0}
 .grid button.cur{border-color:var(--text)}
 .grid button.dim{opacity:.25}
 .aside-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
@@ -101,7 +108,8 @@ button.opt:disabled{cursor:default}
 button.opt:disabled:hover{border-color:var(--border)}
 .opt .k{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--surface-2)}
 .opt.multi .k{border-radius:6px}
-.opt .t{flex:1;padding-top:1px}
+.opt .t{flex:1;min-width:0;padding-top:1px;overflow-wrap:anywhere}
+.qt{overflow-wrap:anywhere}
 .opt .m{flex:none;font-size:12px;font-weight:600;padding-top:4px;white-space:nowrap}
 .opt.sel{border-color:var(--accent);background:var(--accent-bg)}
 .opt.sel .k{background:var(--accent);color:#fff}
@@ -150,6 +158,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   .q{padding:14px}
   .opt .m{display:none}
   header h1 .full{display:none}
+  header{gap:6px;padding:10px 12px}
+  header .btn{padding:6px 9px}
+  #btnPractice{display:none!important}
   .banner{padding:14px}
 }
 </style>
@@ -161,7 +172,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <span id="timer" hidden></span>
   <button class="btn" id="navToggle">Câu hỏi</button>
   <button class="btn primary" id="btnPractice" hidden>Làm lại bài</button>
-  <button class="btn" id="btnReload" hidden>Tải file khác</button>
+  <button class="btn" id="btnExport" hidden title="Tải về file JSON gồm câu hỏi, câu đã chữa và lịch sử làm lại">Export</button>
+  <button class="btn" id="btnReload" hidden title="Mở file đề hoặc file đã export">Mở file</button>
   <button class="btn" id="theme" title="Đổi giao diện sáng/tối">◐</button>
 </header>
 
@@ -170,7 +182,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <!-- Upload -->
 <section id="drop">
   <h2>Tải lên file kết quả bài thi</h2>
-  <p>Kéo thả file <b>.json</b> vào đây, hoặc bấm nút bên dưới.<br>File chỉ được đọc trên trình duyệt, không gửi lên server.</p>
+  <p>Kéo thả file <b>.json</b> vào đây, hoặc bấm nút bên dưới.<br>Nhận cả file đề gốc lẫn file đã export (có dữ liệu câu đã chữa và lịch sử làm lại).<br>File chỉ được đọc trên trình duyệt, không gửi lên server.</p>
   <button class="btn primary" id="pick">Chọn file JSON</button>
   <input type="file" id="file" accept=".json,application/json" hidden>
   <div id="err"></div>
@@ -186,6 +198,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
       <button data-f="all" class="on">Tất cả</button>
       <button data-f="ok">Đúng</button>
       <button data-f="bad">Sai</button>
+    </div>
+    <div class="seg" id="rvFixFilters">
+      <button data-f="all" class="on">Mọi câu</button>
+      <button data-f="todo">Chưa chữa</button>
+      <button data-f="fixed">Đã chữa</button>
     </div>
     <input id="search" type="search" placeholder="Tìm trong câu hỏi…">
     <div class="grid" id="rvGrid"></div>
@@ -276,49 +293,134 @@ const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { cons
 const L = i => String.fromCharCode(65 + i);
 const fmt = s => { s = Math.max(0, Math.round(s)); const h = s / 3600 | 0, m = (s % 3600) / 60 | 0, x = s % 60;
   return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const fmtDate = t => new Date(t).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'});
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
-                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
                 del(k) { try { localStorage.removeItem(k); } catch {} } };
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 3500); }
+const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
 
-let Q = [], fileName = '', view = 'drop';
+// Q: câu hỏi của đề; D: dữ liệu ôn tập của đề (lưu theo fileId = băm nội dung câu hỏi)
+let Q = [], byNo = new Map(), fileName = '', fileId = '', view = 'drop';
+let D = {reviewed: {}, attempts: []};
+const EXTRA = ['reviewed', 'reviewed_at', 'retry_stats'];
 
-/* ---------- Load ---------- */
+/* ---------- Dữ liệu ôn tập ---------- */
+const dataKey = () => 'ev-data:' + fileId;
+function saveData(){ if (!store.set(dataKey(), D)) toast('Bộ nhớ trình duyệt đầy, hãy Export để giữ dữ liệu'); }
+const isFixed = q => !!D.reviewed[q.no];
+function stats(){
+  const s = {};
+  D.attempts.forEach(a => a.items.forEach(x => { const t = s[x.no] ||= {times: 0, correct: 0}; t.times++; if (x.ok) t.correct++; }));
+  return s;
+}
+let ST = {};
+
+/* ---------- Load / import ---------- */
 function normalize(raw){
   const arr = Array.isArray(raw) ? raw : (raw.questions || raw.data || raw.items);
   if (!Array.isArray(arr) || !arr.length) throw new Error('Không tìm thấy danh sách câu hỏi trong file.');
   return arr.map((q, i) => {
+    const src = {...q}; EXTRA.forEach(k => delete src[k]);
     const answers = {};
     Object.entries(q.answers || {}).forEach(([k, v]) => answers[k.toUpperCase()] = v);
     const sel = keys(q.selected_answer), cor = keys(q.correct_answer);
     const ok = typeof q.is_correct === 'boolean' ? q.is_correct
              : q.result ? q.result === 'correct'
              : cor.length ? same(sel, cor) : null;
-    return {...q, answers, no: q.question_no ?? i + 1, sel, cor, ok};
+    return {src, answers, question: q.question, no: String(q.question_no ?? i + 1), sel, cor, ok};
   });
 }
-function load(text, name){
+// Đọc dữ liệu ôn tập có trong file export
+function importedData(raw){
+  const out = {reviewed: {}, attempts: []};
+  (Array.isArray(raw) ? raw : raw.questions || []).forEach((q, i) => {
+    if (q.reviewed === true) out.reviewed[String(q.question_no ?? i + 1)] = q.reviewed_at ? Date.parse(q.reviewed_at) || Date.now() : Date.now();
+  });
+  (Array.isArray(raw?.attempts) ? raw.attempts : []).forEach(a => {
+    const items = (a.answers || []).filter(x => byNo.has(String(x.question_no))).map(x => {
+      const q = byNo.get(String(x.question_no)), ord = keys(x.option_order).filter(k => k in q.answers);
+      const pick = keys(x.selected_answer);
+      return {no: q.no, order: ord.length === Object.keys(q.answers).length ? ord : Object.keys(q.answers), pick,
+              ok: typeof x.is_correct === 'boolean' ? x.is_correct : same(pick, q.cor)};
+    });
+    if (!items.length) return;
+    out.attempts.push({id: String(a.id || hash(JSON.stringify(a))), at: Date.parse(a.finished_at) || Date.now(),
+      startedAt: Date.parse(a.started_at) || null, mode: a.mode === 'practice' ? 'practice' : 'exam',
+      secs: +a.duration_sec || 0, timeout: !!a.timeout, cfg: a.settings || null, items});
+  });
+  return out;
+}
+function mergeData(a, b){
+  const ids = new Set(a.attempts.map(x => x.id));
+  return {reviewed: {...b.reviewed, ...a.reviewed},
+          attempts: [...a.attempts, ...b.attempts.filter(x => !ids.has(x.id))].sort((x, y) => y.at - x.at)};
+}
+
+function load(text, name, {restoring} = {}){
   try {
-    Q = normalize(JSON.parse(text)); fileName = name;
+    const raw = JSON.parse(text);
+    Q = normalize(raw); fileName = name;
+    byNo = new Map(Q.map(q => [q.no, q]));
+    fileId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
+    D = store.get(dataKey(), null) || {reviewed: {}, attempts: []};
+    if (!restoring) {
+      const inc = importedData(raw), nInc = Object.keys(inc.reviewed).length + inc.attempts.length;
+      const nHave = Object.keys(D.reviewed).length + D.attempts.length;
+      if (nInc) {
+        const before = D.attempts.length;
+        D = mergeData(D, inc); saveData();
+        toast(nHave ? `Đã gộp dữ liệu: ${Object.keys(D.reviewed).length} câu đã chữa, ${D.attempts.length - before} lượt làm mới`
+                    : `Đã nhập ${Object.keys(inc.reviewed).length} câu đã chữa, ${inc.attempts.length} lượt làm`);
+      } else if (nHave) toast(`Đã khôi phục ${Object.keys(D.reviewed).length} câu đã chữa, ${D.attempts.length} lượt làm của đề này`);
+      // chỉ giữ câu hỏi trong bản lưu file, dữ liệu ôn tập nằm ở ev-data
+      store.set('ev-file', {name, text: JSON.stringify(Q.map(q => q.src))});
+    }
     $('#fname').textContent = name;
-    store.set('ev-file', {name, text});
     showFileReview();
     return true;
   } catch (e) { $('#err').textContent = 'Lỗi đọc file: ' + e.message; return false; }
 }
 function readFile(f){ if (!f || view === 'quiz') return; $('#err').textContent = ''; const r = new FileReader(); r.onload = () => load(r.result, f.name); r.readAsText(f, 'utf-8'); }
 
+/* ---------- Export ---------- */
+function exportData(){
+  const iso = t => t ? new Date(t).toISOString() : null;
+  const out = {
+    app: 'exam-viewer', version: 1, exported_at: new Date().toISOString(), source_file: fileName,
+    questions: Q.map(q => {
+      const s = ST[q.no];
+      return {...q.src, reviewed: isFixed(q), reviewed_at: isFixed(q) ? iso(D.reviewed[q.no]) : null,
+              retry_stats: {times: s?.times || 0, correct: s?.correct || 0}};
+    }),
+    attempts: D.attempts.map(a => ({
+      id: a.id, started_at: iso(a.startedAt), finished_at: iso(a.at), mode: a.mode,
+      duration_sec: Math.round(a.secs), timeout: a.timeout, settings: a.cfg,
+      score: {correct: a.items.filter(x => x.ok).length, total: a.items.length},
+      answers: a.items.map(x => ({question_no: byNo.get(x.no)?.src.question_no ?? x.no, option_order: x.order.join(', '),
+        selected_answer: x.pick.join(', '), correct_answer: byNo.get(x.no)?.cor.join(', '), is_correct: x.ok}))
+    }))
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName.replace(/(_on_tap)?\.json$/i, '') + '_on_tap.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Đã export ' + a.download);
+}
+
 function show(v){
   view = v;
   $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz';
-  $('#btnPractice').hidden = v !== 'review'; $('#btnReload').hidden = v !== 'review';
+  $('#btnPractice').hidden = $('#btnReload').hidden = $('#btnExport').hidden = v !== 'review';
   $('#timer').hidden = v !== 'quiz';
   $$('.side').forEach(s => s.classList.remove('open'));
   window.scrollTo(0, 0);
 }
 
 /* ---------- Shared card renderer ---------- */
-// item: {q, order:[origKey], pick:[origKey], ok, checked?}
+// item: {q, order:[origKey], pick:[origKey], ok}
 function optsHTML(it, {reveal, interactive}){
   const multi = it.q.cor.length > 1;
   return it.order.map((k, i) => {
@@ -339,17 +441,50 @@ function statusTag(it){
   if (it.ok === false) return it.pick.length ? '<span class="tag bad">Sai</span>' : '<span class="tag bad">Bỏ trống</span>';
   return '';
 }
+const fixBtn = q => `<button class="btn sm${isFixed(q) ? ' fixed-on' : ''}" data-fix="${esc(q.no)}" title="${isFixed(q) ? 'Chữa lúc ' + fmtDate(D.reviewed[q.no]) + ' · bấm để bỏ' : 'Đánh dấu là đã chữa câu này'}">${isFixed(q) ? '✓ Đã chữa' : '☐ Đánh dấu đã chữa'}</button>`;
+function statTag(q){
+  const s = ST[q.no]; if (!s) return '';
+  return `<span class="tag src" title="Số lần làm lại câu này">Làm lại ${s.times} lần · đúng ${s.correct}</span>`;
+}
 
 /* ---------- Review view ---------- */
-let RV = {items: [], filter: 'all', term: '', ctx: null}, io;
+let RV = {items: [], filter: 'all', fix: 'all', term: '', ctx: null}, io;
 
 function showFileReview(){
   RV.ctx = {kind: 'file'};
   RV.items = Q.map(q => ({q, order: Object.keys(q.answers), pick: q.sel, ok: q.ok}));
   renderReview(); show('review');
 }
+function showAttempt(a){
+  RV.ctx = {kind: 'attempt', attempt: a};
+  RV.items = a.items.filter(x => byNo.has(x.no)).map(x => ({q: byNo.get(x.no), order: x.order, pick: x.pick, ok: x.ok}));
+  renderReview(); show('review');
+}
+
+function bannerHTML(){
+  const items = RV.items, total = items.length, nOk = items.filter(x => x.ok === true).length, pct = Math.round(nOk / total * 100);
+  const wrong = items.filter(x => x.ok !== true), wrongFixed = wrong.filter(x => isFixed(x.q)).length;
+  const fixInfo = wrong.length ? `<span>Đã chữa <b>${wrongFixed}/${wrong.length}</b> câu sai</span>` : '';
+  const c = RV.ctx;
+  if (c.kind === 'file') return `<div class="big">${pct}%</div>
+    <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${total - nOk}</b></span>${fixInfo}
+      ${D.attempts.length ? `<span>Đã làm lại <b>${D.attempts.length}</b> lượt</span>` : ''}</div>
+    <div class="acts"><button class="btn primary" data-act="setup">Làm lại bài</button>
+    ${wrong.length ? '<button class="btn" data-act="wrong">Làm lại câu sai</button>' : ''}
+    ${wrong.length - wrongFixed && wrongFixed ? '<button class="btn" data-act="wrongTodo">Làm câu sai chưa chữa</button>' : ''}</div>`;
+  const a = c.attempt;
+  return `<div class="big" style="color:var(${pct >= 72 ? '--ok' : '--bad'})">${pct}%</div>
+    <div class="stats"><span>Kết quả: <b>${nOk}/${total}</b> câu</span><span>Thời gian: <b>${fmt(a.secs)}</b></span>
+    <span>${a.mode === 'exam' ? 'Thi thử' : 'Luyện tập'} · ${fmtDate(a.at)}${a.timeout ? ' · <b style="color:var(--bad)">Hết giờ</b>' : ''}</span>${fixInfo}</div>
+    <div class="acts">${wrong.length ? '<button class="btn primary" data-act="retryWrong">Làm lại câu sai</button>' : ''}
+    <button class="btn" data-act="retrySame">Làm lại lượt này</button>
+    <button class="btn" data-act="setup">Cài đặt mới</button>
+    <button class="btn" data-act="file">Về bài gốc</button></div>`;
+}
+function gridCls(it){ return (it.ok === true ? 'ok' : it.ok === false ? 'bad' : '') + (isFixed(it.q) ? ' fixed' : ''); }
 
 function renderReview(){
+  ST = stats();
   const items = RV.items, total = items.length;
   const nOk = items.filter(x => x.ok === true).length;
   const nEmpty = items.filter(x => x.ok === false && !x.pick.length).length;
@@ -359,50 +494,56 @@ function renderReview(){
   $('#rvTotal').textContent = `${nOk}/${total} câu đúng`;
   $('#rvBar').style.width = pct + '%';
   $('#rvLegend').innerHTML = `<span><i style="background:var(--ok)"></i>${nOk} đúng</span><span><i style="background:var(--bad)"></i>${nBad} sai</span>`
-    + (nEmpty ? `<span><i style="background:var(--surface-2);border:1px solid var(--border)"></i>${nEmpty} bỏ trống</span>` : '');
-  RV.filter = 'all'; RV.term = ''; $('#search').value = '';
-  $$('#rvFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
+    + (nEmpty ? `<span><i style="background:var(--surface-2);border:1px solid var(--border)"></i>${nEmpty} bỏ trống</span>` : '')
+    + `<span><b style="color:var(--ok)">✓</b> ${items.filter(x => isFixed(x.q)).length} đã chữa</span>`;
+  RV.filter = 'all'; RV.fix = 'all'; RV.term = ''; $('#search').value = '';
+  $$('#rvFilters button, #rvFixFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
+  $('#rvBanner').innerHTML = bannerHTML();
 
   const c = RV.ctx;
-  if (c.kind === 'file') {
-    $('#rvBanner').innerHTML = `<div class="big">${pct}%</div>
-      <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${nBad + nEmpty}</b></span></div>
-      <div class="acts"><button class="btn primary" data-act="setup">Làm lại bài</button>
-      ${nBad + nEmpty ? '<button class="btn" data-act="wrong">Làm lại câu sai</button>' : ''}</div>`;
-  } else {
-    $('#rvBanner').innerHTML = `<div class="big" style="color:var(${pct >= 72 ? '--ok' : '--bad'})">${pct}%</div>
-      <div class="stats"><span>Kết quả: <b>${nOk}/${total}</b> câu</span><span>Thời gian: <b>${fmt(c.secs)}</b></span>
-      <span>${c.mode === 'exam' ? 'Thi thử' : 'Luyện tập'}${c.timeout ? ' · <b style="color:var(--bad)">Hết giờ</b>' : ''}</span></div>
-      <div class="acts">${nBad + nEmpty ? '<button class="btn primary" data-act="retryWrong">Làm lại câu sai</button>' : ''}
-      <button class="btn" data-act="retrySame">Làm lại lượt này</button>
-      <button class="btn" data-act="setup">Cài đặt mới</button>
-      <button class="btn" data-act="file">Về bài gốc</button></div>`;
-  }
-
   $('#rvGrid').innerHTML = items.map((it, i) =>
-    `<button data-i="${i}" class="${it.ok === true ? 'ok' : it.ok === false ? 'bad' : ''}" title="Câu ${i + 1}">${c.kind === 'file' ? it.q.no : i + 1}</button>`).join('');
+    `<button data-i="${i}" class="${gridCls(it)}" title="Câu ${i + 1}${isFixed(it.q) ? ' · đã chữa' : ''}">${c.kind === 'file' ? esc(it.q.no) : i + 1}</button>`).join('');
 
   $('#rvList').innerHTML = items.map((it, i) => {
     const multi = it.q.cor.length > 1;
-    const num = c.kind === 'file' ? it.q.no : i + 1;
+    const num = c.kind === 'file' ? esc(it.q.no) : i + 1;
     return `<article class="q" id="rv${i}" data-i="${i}">
       <div class="qh"><span class="qn">Câu ${num}</span>${statusTag(it)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
-        <span class="sp"></span>${c.kind !== 'file' ? `<span class="tag src">Câu gốc #${it.q.no}</span>` : ''}</div>
+        ${c.kind !== 'file' ? `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>` : statTag(it.q)}
+        <span class="sp"></span>${fixBtn(it.q)}</div>
       <p class="qt">${esc(it.q.question).trim()}</p>
       <div class="opts">${optsHTML(it, {reveal: true})}</div>
       <div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>
     </article>`;
   }).join('');
-  observe();
+  applyFilter(); observe();
+}
+
+// Bật/tắt "đã chữa" rồi cập nhật tại chỗ, không render lại danh sách để giữ vị trí cuộn
+function toggleFixed(no){
+  if (D.reviewed[no]) delete D.reviewed[no]; else D.reviewed[no] = Date.now();
+  saveData();
+  RV.items.forEach((it, i) => {
+    if (it.q.no !== no) return;
+    const card = $('#rv' + i);
+    card.querySelector('[data-fix]').outerHTML = fixBtn(it.q);
+    const g = $(`#rvGrid [data-i="${i}"]`);
+    g.className = gridCls(it) + (g.classList.contains('cur') ? ' cur' : '');
+  });
+  $('#rvBanner').innerHTML = bannerHTML();
+  $('#rvLegend').lastElementChild.innerHTML = `<b style="color:var(--ok)">✓</b> ${RV.items.filter(x => isFixed(x.q)).length} đã chữa`;
+  applyFilter();
 }
 
 function applyFilter(){
   const t = RV.term.toLowerCase();
   RV.items.forEach((it, i) => {
     const byF = RV.filter === 'all' || (RV.filter === 'ok' ? it.ok === true : it.ok === false);
+    const byX = RV.fix === 'all' || (RV.fix === 'fixed') === isFixed(it.q);
     const byT = !t || (it.q.question + ' ' + Object.values(it.q.answers).join(' ')).toLowerCase().includes(t);
-    $('#rv' + i).classList.toggle('hide', !(byF && byT));
-    $(`#rvGrid [data-i="${i}"]`).classList.toggle('dim', !(byF && byT));
+    const show = byF && byX && byT;
+    $('#rv' + i).classList.toggle('hide', !show);
+    $(`#rvGrid [data-i="${i}"]`).classList.toggle('dim', !show);
   });
 }
 function observe(){
@@ -414,10 +555,13 @@ function observe(){
   }), {rootMargin: '-80px 0px -70% 0px'});
   $$('#rvList .q').forEach(el => io.observe(el));
 }
+function resetFilters(){
+  RV.filter = RV.fix = 'all'; RV.term = ''; $('#search').value = '';
+  $$('#rvFilters button, #rvFixFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all')); applyFilter();
+}
 function goReview(i){
   const el = $('#rv' + i); if (!el) return;
-  if (el.classList.contains('hide')) { RV.filter = 'all'; RV.term = ''; $('#search').value = '';
-    $$('#rvFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all')); applyFilter(); }
+  if (el.classList.contains('hide')) resetFilters();
   el.scrollIntoView({behavior: 'smooth', block: 'start'});
   el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200);
   $('#review .side').classList.remove('open');
@@ -426,14 +570,18 @@ function goReview(i){
 $('#rvGrid').onclick = e => { const b = e.target.closest('button'); if (b) goReview(+b.dataset.i); };
 $('#rvFilters').onclick = e => { const b = e.target.closest('button'); if (!b) return; RV.filter = b.dataset.f;
   $$('#rvFilters button').forEach(x => x.classList.toggle('on', x === b)); applyFilter(); };
+$('#rvFixFilters').onclick = e => { const b = e.target.closest('button'); if (!b) return; RV.fix = b.dataset.f;
+  $$('#rvFixFilters button').forEach(x => x.classList.toggle('on', x === b)); applyFilter(); };
 $('#search').oninput = e => { RV.term = e.target.value.trim(); applyFilter(); };
+$('#rvList').onclick = e => { const b = e.target.closest('[data-fix]'); if (b) toggleFixed(b.dataset.fix); };
 $('#rvBanner').onclick = e => {
   const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return;
   if (a === 'setup') openSetup();
   if (a === 'file') showFileReview();
-  if (a === 'wrong') startQuiz(Q.filter(q => q.ok !== true), {...lastCfg(), count: 'all'});
-  if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.cfg);
-  if (a === 'retrySame') startQuiz(RV.items.map(x => x.q), RV.ctx.cfg);
+  if (a === 'wrong') startQuiz(pool('wrong'), {...lastCfg(), count: 'all'});
+  if (a === 'wrongTodo') startQuiz(pool('todo'), {...lastCfg(), count: 'all'});
+  if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
+  if (a === 'retrySame') startQuiz(RV.items.map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
 };
 
 /* ---------- Setup dialog ---------- */
@@ -441,22 +589,26 @@ const DEF = {src: 'all', count: 'all', countN: 30, mode: 'exam', time: 'auto', t
 let S = {};
 const lastCfg = () => ({...DEF, ...store.get('ev-cfg', {})});
 
-function pool(src){ return src === 'wrong' ? Q.filter(q => q.ok !== true) : src === 'right' ? Q.filter(q => q.ok === true) : Q; }
+function pool(src){
+  return src === 'wrong' ? Q.filter(q => q.ok !== true)
+       : src === 'todo' ? Q.filter(q => q.ok !== true && !isFixed(q))
+       : src === 'right' ? Q.filter(q => q.ok === true) : Q;
+}
 function nQuestions(){ const p = pool(S.src).length; const n = S.count === 'all' ? p : S.count === 'custom' ? +S.countN || 0 : +S.count; return Math.min(Math.max(n, 0), p); }
 function secsFor(n, cfg){ return cfg.time === 'none' ? 0 : cfg.time === 'auto' ? n * 120 : Math.max(1, +cfg.timeN || 0) * 60; }
 
 function openSetup(){
   S = lastCfg();
-  const nWrong = pool('wrong').length, nRight = pool('right').length;
-  $('#stSrc').innerHTML = [['all', `Tất cả (${Q.length})`], ['wrong', `Chỉ câu sai (${nWrong})`], ['right', `Chỉ câu đúng (${nRight})`]]
-    .map(([v, t]) => `<button type="button" class="chip" data-v="${v}" ${pool(v).length ? '' : 'disabled'}>${t}</button>`).join('');
+  $('#stSrc').innerHTML = [['all', 'Tất cả'], ['wrong', 'Chỉ câu sai'], ['todo', 'Câu sai chưa chữa'], ['right', 'Chỉ câu đúng']]
+    .map(([v, t]) => `<button type="button" class="chip" data-v="${v}" ${pool(v).length ? '' : 'disabled'}>${t} (${pool(v).length})</button>`).join('');
   if (!pool(S.src).length) S.src = 'all';
   $('#stCountN').value = S.countN; $('#stTimeN').value = S.timeN;
   $('#stShuffleQ').checked = S.shuffleQ; $('#stShuffleA').checked = S.shuffleA;
-  const hist = store.get('ev-hist', []).filter(h => h.file === fileName).slice(0, 5);
-  $('#stHist').hidden = !hist.length;
-  $('#stHist').innerHTML = `<h3>Lịch sử làm bài với file này</h3><table>${hist.map(h =>
-    `<tr><td>${new Date(h.at).toLocaleString('vi-VN', {dateStyle: 'short', timeStyle: 'short'})}</td><td><b>${h.ok}/${h.n}</b> (${Math.round(h.ok / h.n * 100)}%)</td><td>${fmt(h.secs)}</td><td>${h.mode === 'exam' ? 'Thi thử' : 'Luyện tập'}</td></tr>`).join('')}</table>`;
+  $('#stHist').hidden = !D.attempts.length;
+  $('#stHist').innerHTML = `<h3>Lịch sử làm lại đề này (${D.attempts.length} lượt)</h3><div class="scroll"><table>${D.attempts.map(h => {
+    const ok = h.items.filter(x => x.ok).length, n = h.items.length;
+    return `<tr><td>${fmtDate(h.at)}</td><td><b>${ok}/${n}</b> (${Math.round(ok / n * 100)}%)</td><td>${fmt(h.secs)}</td><td>${h.mode === 'exam' ? 'Thi thử' : 'Luyện tập'}</td><td><button type="button" data-view="${esc(h.id)}">Xem</button></td></tr>`;
+  }).join('')}</table></div>`;
   syncSetup(); $('#setup').showModal();
 }
 function syncSetup(){
@@ -480,6 +632,8 @@ $('#stCountN').oninput = e => { S.countN = e.target.value; syncSetup(); };
 $('#stTimeN').oninput = e => { S.timeN = e.target.value; syncSetup(); };
 $('#stShuffleQ').onchange = e => { S.shuffleQ = e.target.checked; syncSetup(); };
 $('#stShuffleA').onchange = e => { S.shuffleA = e.target.checked; syncSetup(); };
+$('#stHist').onclick = e => { const id = e.target.closest('[data-view]')?.dataset.view; if (!id) return;
+  const a = D.attempts.find(x => x.id === id); if (a) { $('#setup').close(); showAttempt(a); } };
 $('#stStart').onclick = () => {
   const n = nQuestions(); if (!n) return;
   store.set('ev-cfg', S);
@@ -525,7 +679,7 @@ function renderQuiz(){
   const reveal = practice && it.checked;
   $('#qzCard').innerHTML = `<article class="q">
     <div class="qh"><span class="qn">Câu ${cur + 1}/${n}</span>${reveal ? statusTag(it) : ''}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
-      <span class="sp"></span><button class="btn" id="qzFlag" style="padding:3px 10px;font-size:13px${it.flag ? ';border-color:var(--warn);color:var(--warn)' : ''}">${it.flag ? '★ Đã đánh dấu' : '☆ Đánh dấu'}</button></div>
+      <span class="sp"></span><button class="btn sm" id="qzFlag"${it.flag ? ' style="border-color:var(--warn);color:var(--warn)"' : ''}>${it.flag ? '★ Đã đánh dấu' : '☆ Đánh dấu'}</button></div>
     <p class="qt">${esc(it.q.question).trim()}</p>
     <div class="opts" id="qzOpts">${optsHTML(it, {reveal, interactive: true})}</div>
     ${practice && multi && !it.checked ? `<div class="sum">Đã chọn ${it.pick.length}/${it.q.cor.length}</div>` : ''}
@@ -535,18 +689,18 @@ function renderQuiz(){
   </article>`;
   saveQuiz();
 }
-// Tự lưu: câu hỏi tham chiếu theo vị trí trong file gốc (ev-file), đồng hồ theo mốc thời gian tuyệt đối
+// Tự lưu bài đang làm: câu hỏi tham chiếu theo số câu của đề, đồng hồ theo mốc thời gian tuyệt đối
 function saveQuiz(){
   if (!QZ) return;
   const {cfg, cur, startAt, endAt, items} = QZ;
-  store.set('ev-quiz', {file: fileName, cfg, cur, startAt, endAt,
-    items: items.map(({q, order, pick, flag, checked, ok}) => ({qi: Q.indexOf(q), order, pick, flag, checked, ok}))});
+  store.set('ev-quiz', {fileId, cfg, cur, startAt, endAt,
+    items: items.map(({q, order, pick, flag, checked, ok}) => ({no: q.no, order, pick, flag, checked, ok}))});
 }
 function restoreQuiz(){
   const s = store.get('ev-quiz', null);
-  if (!s || s.file !== fileName || !s.items?.every(x => Q[x.qi])) return store.del('ev-quiz');
+  if (!s || s.fileId !== fileId || !s.items?.every(x => byNo.has(x.no))) return store.del('ev-quiz');
   QZ = {cfg: s.cfg, cur: s.cur, startAt: s.startAt, endAt: s.endAt,
-        items: s.items.map(({qi, ...x}) => ({...x, q: Q[qi]}))};
+        items: s.items.map(({no, ...x}) => ({...x, q: byNo.get(no)}))};
   QZ.tick = setInterval(tick, 250);
   show('quiz'); renderQuiz(); tick();
   if (QZ) toast('Đã khôi phục bài đang làm');
@@ -570,15 +724,14 @@ function submitQuiz(timeout){
     if (!confirm(left ? `Còn ${left} câu chưa trả lời. Vẫn nộp bài?` : 'Nộp bài?')) return;
   }
   clearInterval(QZ.tick); store.del('ev-quiz');
-  const secs = Math.min((Date.now() - QZ.startAt) / 1000, QZ.endAt ? (QZ.endAt - QZ.startAt) / 1000 : Infinity);
-  const items = QZ.items.map(x => ({q: x.q, order: x.order, pick: x.pick, ok: same(x.pick, x.q.cor)}));
-  const nOk = items.filter(x => x.ok).length;
-  const hist = store.get('ev-hist', []);
-  hist.unshift({file: fileName, at: Date.now(), n: items.length, ok: nOk, secs, mode: QZ.cfg.mode});
-  store.set('ev-hist', hist.slice(0, 50));
-  RV.ctx = {kind: 'attempt', secs, mode: QZ.cfg.mode, timeout, cfg: QZ.cfg};
-  RV.items = items; QZ = null;
-  renderReview(); show('review');
+  const now = Date.now();
+  const secs = Math.min((now - QZ.startAt) / 1000, QZ.endAt ? (QZ.endAt - QZ.startAt) / 1000 : Infinity);
+  const attempt = {id: now.toString(36) + Math.random().toString(36).slice(2, 6), at: now, startedAt: QZ.startAt,
+    mode: QZ.cfg.mode, secs, timeout, cfg: QZ.cfg,
+    items: QZ.items.map(x => ({no: x.q.no, order: x.order, pick: x.pick, ok: same(x.pick, x.q.cor)}))};
+  D.attempts.unshift(attempt); saveData();
+  QZ = null;
+  showAttempt(attempt);
   if (timeout) setTimeout(() => alert('Hết giờ! Bài đã được nộp tự động.'), 50);
 }
 
@@ -592,7 +745,8 @@ $('#qzCard').onclick = e => {
   if (id === 'qzFlag') { QZ.items[QZ.cur].flag = !QZ.items[QZ.cur].flag; renderQuiz(); }
 };
 $('#btnSubmit').onclick = () => submitQuiz(false);
-$('#btnQuit').onclick = () => { if (confirm('Thoát và bỏ lượt làm bài này?')) { clearInterval(QZ.tick); QZ = null; store.del('ev-quiz'); RV.ctx?.kind === 'attempt' ? (renderReview(), show('review')) : showFileReview(); } };
+$('#btnQuit').onclick = () => { if (confirm('Thoát và bỏ lượt làm bài này?')) { clearInterval(QZ.tick); QZ = null; store.del('ev-quiz');
+  RV.ctx?.kind === 'attempt' ? (renderReview(), show('review')) : showFileReview(); } };
 document.addEventListener('keydown', e => {
   if (view !== 'quiz' || !QZ || e.target.matches('input,textarea') || e.ctrlKey || e.metaKey || e.altKey || $('#setup').open) return;
   const it = QZ.items[QZ.cur], k = e.key.toUpperCase();
@@ -610,6 +764,7 @@ $('#pick').onclick = () => $('#file').click();
 $('#file').onchange = e => readFile(e.target.files[0]);
 $('#btnReload').onclick = () => { $('#file').value = ''; $('#file').click(); };
 $('#btnPractice').onclick = openSetup;
+$('#btnExport').onclick = exportData;
 ['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.add('over'); }));
 ['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.remove('over'); }));
 document.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
@@ -618,8 +773,9 @@ $('#theme').onclick = () => { const r = document.documentElement;
   const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme = dark ? 'light' : 'dark'; };
 show('drop');
+store.del('ev-hist');
 const saved = store.get('ev-file', null);
-if (saved && load(saved.text, saved.name)) restoreQuiz();
+if (saved && load(saved.text, saved.name, {restoring: true})) restoreQuiz();
 </script>
 </body>
 </html>
