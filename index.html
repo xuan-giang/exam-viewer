@@ -1115,10 +1115,11 @@ Cloud.openExam = inc => {
       await b.commit();
       merged = {reviewed: {...D.reviewed}, notes: {...D.notes}, attempts: [...D.attempts]};
     } else {
-      const pd = p.data() || {}, since = pd.updatedAt || 0;
-      const keep = (o, t) => Object.fromEntries(Object.entries(o).filter(([, v]) => t(v) > since));
-      merged = mergeData({reviewed: {...(pd.reviewed || {}), ...keep(D.reviewed, v => v)}, notes: pd.notes || {}, attempts: a.docs.map(x => x.data())},
-                         {reviewed: {}, notes: keep(D.notes, v => v.at), attempts: D.attempts});
+      const pd = p.data() || {};
+      // Gộp hợp dữ liệu trên máy với cloud (ghi chú: bản sửa mới hơn thắng) để không bao giờ mất dữ liệu;
+      // đánh đổi: câu bỏ đánh dấu/ghi chú đã xóa ở máy khác có thể quay lại từ một máy cũ
+      merged = mergeData({reviewed: pd.reviewed || {}, notes: pd.notes || {}, attempts: a.docs.map(x => x.data())},
+                         {reviewed: D.reviewed, notes: D.notes, attempts: D.attempts});
       if (inc) merged = mergeData(merged, inc);
     }
     if (openedId !== id) return;
@@ -1155,9 +1156,10 @@ function subscribeExam(id){
 Cloud.flush = () => {
   clearTimeout(flushTimer); flushTimer = null;
   if (!Cloud.user || !openedId || !pend.size) return;
-  const patch = {reviewed: {}, notes: {}, updatedAt: Date.now()};
+  // Chỉ tạo map khi có thay đổi: với merge, map rỗng {} sẽ GHI ĐÈ cả field thành rỗng (xóa hết ghi chú/đã chữa)
+  const patch = {updatedAt: Date.now()};
   pend.forEach(k => { const no = k.slice(2), v = k[0] === 'r' ? D.reviewed[no] : D.notes[no];
-    patch[k[0] === 'r' ? 'reviewed' : 'notes'][no] = v ?? deleteField(); });
+    (patch[k[0] === 'r' ? 'reviewed' : 'notes'] ||= {})[no] = v ?? deleteField(); });
   pend.clear();
   track(setDoc(ref('exams', openedId, 'data', 'progress'), patch, {merge: true}));
   track(setDoc(ref('exams', openedId), metaFields(), {merge: true}));
