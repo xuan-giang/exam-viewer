@@ -72,6 +72,10 @@ input[type=search],input[type=number]{padding:7px 10px;border:1px solid var(--bo
 .grid .flag::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--warn)}
 .grid .fixed::before{content:"✓";position:absolute;right:2px;bottom:0;font-size:10px;line-height:1.2;color:var(--ok)}
 .grid .fixed{box-shadow:inset 0 -2px 0 var(--ok)}
+/* 🚩 Đánh dấu khi thi (lấy từ file, chỉ đọc) — khác "đã chữa" (✓) và "đánh dấu tạm" khi làm lại (★) */
+.grid .mk{position:absolute;left:3px;bottom:3px;width:8px;height:8px;background:linear-gradient(45deg,var(--warn) 50%,transparent 50%)}
+.legend i.lg-mk{background:linear-gradient(45deg,var(--warn) 50%,transparent 50%);border-radius:0}
+.tag.mark{background:var(--warn-bg);color:var(--warn)}
 .btn.sm{padding:3px 10px;font-size:13px}
 .btn.fixed-on{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
 .hist .scroll{max-height:220px;overflow:auto}
@@ -272,6 +276,10 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
       <button data-f="ok">Đúng</button>
       <button data-f="bad">Sai</button>
     </div>
+    <div class="seg" id="rvMarkFilters" hidden>
+      <button data-f="all" class="on">Mọi câu</button>
+      <button data-f="marked" title="Câu đánh dấu Mark for review khi thi">🚩 Đánh dấu</button>
+    </div>
     <div class="seg" id="rvFixFilters">
       <button data-f="all" class="on">Mọi câu</button>
       <button data-f="todo">Chưa chữa</button>
@@ -317,7 +325,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   </aside>
   <main>
     <div id="qzCard"></div>
-    <div class="hint">Phím tắt: A–E chọn đáp án · ← → chuyển câu · F đánh dấu</div>
+    <div class="hint">Phím tắt: A–E chọn đáp án · ← → chuyển câu · F đánh dấu tạm</div>
   </main>
 </div>
 
@@ -392,7 +400,8 @@ const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33
 
 // Q: câu hỏi của đề; D: dữ liệu ôn tập của đề (lưu theo fileId = băm nội dung câu hỏi)
 // fileId: mã của một bài làm (câu hỏi + đáp án đã chọn); questionsId: mã bộ câu hỏi, để nhận ra các lần làm cùng một đề
-let Q = [], byNo = new Map(), fileName = '', fileId = '', questionsId = '', view = 'drop';
+// hasMarks: file có trường marked_for_review (export bằng script mới); file cũ thì ẩn mọi thứ liên quan 🚩
+let Q = [], byNo = new Map(), fileName = '', fileId = '', questionsId = '', hasMarks = false, view = 'drop';
 // Đồng bộ cloud: module Firebase cuối trang gắn các hàm vào đây; khi chưa tải được hoặc chưa đăng nhập, web chạy offline như cũ
 const Cloud = window.Cloud = {ready: false, user: null, exams: [], listReady: false, quiz: null, sync: 'idle'};
 let D = {reviewed: {}, notes: {}, attempts: []};
@@ -421,7 +430,7 @@ function normalize(raw){
     const ok = typeof q.is_correct === 'boolean' ? q.is_correct
              : q.result ? q.result === 'correct'
              : cor.length ? same(sel, cor) : null;
-    return {src, answers, question: q.question, no: String(q.question_no ?? i + 1), sel, cor, ok};
+    return {src, answers, question: q.question, no: String(q.question_no ?? i + 1), sel, cor, ok, marked: q.marked_for_review === true};
   });
 }
 // Đọc dữ liệu ôn tập có trong file export
@@ -460,6 +469,7 @@ function load(text, name, {restoring, id} = {}){
     flushNotes(); Cloud.flush?.();
     Q = normalize(raw); fileName = name;
     byNo = new Map(Q.map(q => [q.no, q]));
+    hasMarks = Q.some(q => typeof q.src.marked_for_review === 'boolean');
     questionsId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
     // Mã cũ (trước 10/2026) chỉ băm câu hỏi nên 2 lần làm cùng đề đè lên nhau; đề đã lưu giữ nguyên mã được truyền vào
     fileId = id || hash(JSON.stringify(Q.map(q => [q.no, q.question, q.sel.join(',')])));
@@ -480,12 +490,7 @@ function load(text, name, {restoring, id} = {}){
       store.set('ev-file', {name, id: fileId, text: JSON.stringify(Q.map(q => q.src))});
     }
     showFileReview();
-    if (!restoring && Cloud.user) {
-      // Bài làm mới của một đề đã có ghi chú ở lần làm khác: hỏi có chép ghi chú sang không
-      const sib = !id && Cloud.exams.find(e => (e.qid || e.id) === questionsId && e.id !== fileId && e.notes);
-      const copy = sib && confirm(`Đây là một lần làm khác của đề "${sib.name}" (đã có ${sib.notes} ghi chú).\nChép các ghi chú đó sang bài làm này?`);
-      Cloud.openExam(inc, copy ? sib.id : null);
-    }
+    if (!restoring && Cloud.user) Cloud.openExam(inc, !id);
     return true;
   } catch (e) { $('#err').textContent = 'Lỗi đọc file: ' + e.message; return false; }
 }
@@ -560,7 +565,7 @@ function statTag(q){
 }
 
 /* ---------- Review view ---------- */
-let RV = {items: [], filter: 'all', fix: 'all', term: '', ctx: null}, io;
+let RV = {items: [], filter: 'all', fix: 'all', mark: 'all', term: '', ctx: null}, io;
 
 function showFileReview(){
   RV.ctx = {kind: 'file'};
@@ -577,9 +582,11 @@ function bannerHTML(){
   const items = RV.items, total = items.length, nOk = items.filter(x => x.ok === true).length, pct = Math.round(nOk / total * 100);
   const wrong = items.filter(x => x.ok !== true), wrongFixed = wrong.filter(x => isFixed(x.q)).length;
   const fixInfo = wrong.length ? `<span>Đã chữa <b>${wrongFixed}/${wrong.length}</b> câu sai</span>` : '';
+  const marked = items.filter(x => x.q.marked), markedOk = marked.filter(x => x.ok === true).length;
   const c = RV.ctx, pq = c.kind === 'file' && QZ === null ? pendingQuiz() : null;
   if (c.kind === 'file') return `<div class="big">${pct}%</div>
     <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${total - nOk}</b></span>${fixInfo}
+      ${hasMarks ? `<span>🚩 Đánh dấu <b>${marked.length}</b> câu${marked.length ? ` (${marked.length - markedOk} sai · ${markedOk} đúng)` : ''}</span>` : ''}
       ${D.attempts.length ? `<span>Đã làm lại <b>${D.attempts.length}</b> lượt</span>` : ''}
       ${Object.keys(D.notes).length ? `<span>Ghi chú <b>${Object.keys(D.notes).length}</b> câu</span>` : ''}</div>
     <div class="acts">${pq ? `<button class="btn primary" data-act="resume">Tiếp tục bài đang làm (${pq.items.filter(x => x.pick.length).length}/${pq.items.length})</button>` : ''}
@@ -587,6 +594,7 @@ function bannerHTML(){
     <button class="btn" data-act="notes">Ghi chú${Object.keys(D.notes).length ? ` (${Object.keys(D.notes).length})` : ''}</button>
     ${wrong.length ? '<button class="btn" data-act="wrong">Làm lại câu sai</button>' : ''}
     ${wrong.length - wrongFixed && wrongFixed ? '<button class="btn" data-act="wrongTodo">Làm câu sai chưa chữa</button>' : ''}
+    ${marked.length ? '<button class="btn" data-act="marked">Làm câu đánh dấu</button>' : ''}
     <button class="btn mob" data-act="export">Export</button><button class="btn mob" data-act="open">Mở file</button></div>`;
   const a = c.attempt;
   return `<div class="big" style="color:var(${pct >= 72 ? '--ok' : '--bad'})">${pct}%</div>
@@ -597,6 +605,7 @@ function bannerHTML(){
     <button class="btn" data-act="setup">Cài đặt mới</button>
     <button class="btn" data-act="file">Về bài gốc</button></div>`;
 }
+const markTag = q => q.marked ? '<span class="tag mark" title="Câu bạn bấm Mark for review trên trang thi">🚩 Đánh dấu khi thi</span>' : '';
 function gridCls(it){ return (it.ok === true ? 'ok' : it.ok === false ? 'bad' : '') + (isFixed(it.q) ? ' fixed' : '') + (D.notes[it.q.no] ? ' noted' : ''); }
 
 function renderReview(){
@@ -611,20 +620,22 @@ function renderReview(){
   $('#rvBar').style.width = pct + '%';
   $('#rvLegend').innerHTML = `<span><i style="background:var(--ok)"></i>${nOk} đúng</span><span><i style="background:var(--bad)"></i>${nBad} sai</span>`
     + (nEmpty ? `<span><i style="background:var(--surface-2);border:1px solid var(--border)"></i>${nEmpty} bỏ trống</span>` : '')
+    + (hasMarks ? `<span><i class="lg-mk"></i>${items.filter(x => x.q.marked).length} đánh dấu khi thi</span>` : '')
     + `<span><b style="color:var(--ok)">✓</b> ${items.filter(x => isFixed(x.q)).length} đã chữa</span>`;
-  RV.filter = 'all'; RV.fix = 'all'; RV.term = ''; $('#search').value = '';
-  $$('#rvFilters button, #rvFixFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
+  RV.filter = RV.fix = RV.mark = 'all'; RV.term = ''; $('#search').value = '';
+  $('#rvMarkFilters').hidden = !hasMarks;
+  $$('#rvFilters button, #rvFixFilters button, #rvMarkFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
   $('#rvBanner').innerHTML = bannerHTML();
 
   const c = RV.ctx;
   $('#rvGrid').innerHTML = items.map((it, i) =>
-    `<button data-i="${i}" class="${gridCls(it)}" title="Câu ${i + 1}${isFixed(it.q) ? ' · đã chữa' : ''}">${c.kind === 'file' ? esc(it.q.no) : i + 1}</button>`).join('');
+    `<button data-i="${i}" class="${gridCls(it)}" title="Câu ${i + 1}${it.q.marked ? ' · đánh dấu khi thi' : ''}${isFixed(it.q) ? ' · đã chữa' : ''}">${c.kind === 'file' ? esc(it.q.no) : i + 1}${it.q.marked ? '<i class="mk" aria-hidden="true"></i>' : ''}</button>`).join('');
 
   $('#rvList').innerHTML = items.map((it, i) => {
     const multi = it.q.cor.length > 1;
     const num = c.kind === 'file' ? esc(it.q.no) : i + 1;
     return `<article class="q wn" id="rv${i}" data-i="${i}"><div class="qbody">
-      <div class="qh"><span class="qn">Câu ${num}</span>${statusTag(it)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
+      <div class="qh"><span class="qn">Câu ${num}</span>${statusTag(it)}${markTag(it.q)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
         ${c.kind !== 'file' ? `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>` : statTag(it.q)}
         <span class="sp"></span>${fixBtn(it.q)}</div>
       <p class="qt">${esc(it.q.question).trim()}</p>
@@ -701,7 +712,7 @@ function renderNotes(){
     ? '<div class="nt-empty">Chưa có ghi chú nào.<br>Gõ vào ô <b>Ghi chú</b> cạnh mỗi câu hỏi để bắt đầu.</div>'
     : !list.length ? '<div class="nt-empty">Không có ghi chú khớp với từ khóa.</div>'
     : list.map(q => `<article class="q">
-      <div class="qh"><span class="qn">Câu ${esc(q.no)}</span>${statusTag({ok: q.ok, pick: q.sel})}${isFixed(q) ? '<span class="tag ok">✓ Đã chữa</span>' : ''}
+      <div class="qh"><span class="qn">Câu ${esc(q.no)}</span>${statusTag({ok: q.ok, pick: q.sel})}${markTag(q)}${isFixed(q) ? '<span class="tag ok">✓ Đã chữa</span>' : ''}
         <span class="sp"></span><button class="btn sm" data-goto="${esc(q.no)}">Mở câu này →</button></div>
       <p class="nq" title="Bấm để xem đầy đủ">${esc(q.question).trim()}</p>
       <p class="nans">Đáp án đúng: <b>${ansLine(q, q.cor)}</b></p>
@@ -712,7 +723,7 @@ function renderNotes(){
 function notesMarkdown(){
   const out = [`# Ghi chú ôn tập: ${fileName}`, '', `Xuất lúc ${fmtDate(Date.now())} · ${Object.keys(D.notes).length} ghi chú`, ''];
   Q.filter(q => D.notes[q.no]).forEach(q => {
-    const st = [q.ok === true ? 'Đúng' : q.ok === false ? 'Sai' : '', isFixed(q) ? 'Đã chữa' : ''].filter(Boolean).join(' · ');
+    const st = [q.ok === true ? 'Đúng' : q.ok === false ? 'Sai' : '', q.marked ? 'Đánh dấu khi thi' : '', isFixed(q) ? 'Đã chữa' : ''].filter(Boolean).join(' · ');
     out.push(`## Câu ${q.no}${st ? ` (${st})` : ''}`, '', q.question.trim().split('\n').map(l => '> ' + l).join('\n'), '');
     q.cor.forEach(k => out.push(`- **Đáp án đúng ${k}:** ${q.answers[k]}`));
     if (q.ok === false) q.sel.forEach(k => out.push(`- Đã chọn ${k}: ${q.answers[k]}`));
@@ -746,8 +757,9 @@ function applyFilter(){
   RV.items.forEach((it, i) => {
     const byF = RV.filter === 'all' || (RV.filter === 'ok' ? it.ok === true : it.ok === false);
     const byX = RV.fix === 'all' || (RV.fix === 'fixed') === isFixed(it.q);
+    const byM = RV.mark === 'all' || it.q.marked;
     const byT = !t || (it.q.question + ' ' + Object.values(it.q.answers).join(' ')).toLowerCase().includes(t);
-    const show = byF && byX && byT;
+    const show = byF && byX && byM && byT;
     $('#rv' + i).classList.toggle('hide', !show);
     $(`#rvGrid [data-i="${i}"]`).classList.toggle('dim', !show);
   });
@@ -763,7 +775,8 @@ function observe(){
 }
 function resetFilters(){
   RV.filter = RV.fix = 'all'; RV.term = ''; $('#search').value = '';
-  $$('#rvFilters button, #rvFixFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all')); applyFilter();
+  RV.mark = 'all';
+  $$('#rvFilters button, #rvFixFilters button, #rvMarkFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all')); applyFilter();
 }
 function goReview(i){
   const el = $('#rv' + i); if (!el) return;
@@ -776,6 +789,8 @@ function goReview(i){
 $('#rvGrid').onclick = e => { const b = e.target.closest('button'); if (b) goReview(+b.dataset.i); };
 $('#rvFilters').onclick = e => { const b = e.target.closest('button'); if (!b) return; RV.filter = b.dataset.f;
   $$('#rvFilters button').forEach(x => x.classList.toggle('on', x === b)); applyFilter(); };
+$('#rvMarkFilters').onclick = e => { const b = e.target.closest('button'); if (!b) return; RV.mark = b.dataset.f;
+  $$('#rvMarkFilters button').forEach(x => x.classList.toggle('on', x === b)); applyFilter(); };
 $('#rvFixFilters').onclick = e => { const b = e.target.closest('button'); if (!b) return; RV.fix = b.dataset.f;
   $$('#rvFixFilters button').forEach(x => x.classList.toggle('on', x === b)); applyFilter(); };
 $('#search').oninput = e => { RV.term = e.target.value.trim(); applyFilter(); };
@@ -790,6 +805,7 @@ $('#rvBanner').onclick = e => {
   if (a === 'open') { $('#file').value = ''; $('#file').click(); }
   if (a === 'wrong') startQuiz(pool('wrong'), {...lastCfg(), count: 'all'});
   if (a === 'wrongTodo') startQuiz(pool('todo'), {...lastCfg(), count: 'all'});
+  if (a === 'marked') startQuiz(pool('marked'), {...lastCfg(), count: 'all'});
   if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
   if (a === 'retrySame') startQuiz(RV.items.map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
 };
@@ -802,14 +818,17 @@ const lastCfg = () => ({...DEF, ...store.get('ev-cfg', {})});
 function pool(src){
   return src === 'wrong' ? Q.filter(q => q.ok !== true)
        : src === 'todo' ? Q.filter(q => q.ok !== true && !isFixed(q))
-       : src === 'right' ? Q.filter(q => q.ok === true) : Q;
+       : src === 'right' ? Q.filter(q => q.ok === true)
+       : src === 'marked' ? Q.filter(q => q.marked)
+       : src === 'wrongMarked' ? Q.filter(q => q.ok !== true || q.marked) : Q;
 }
 function nQuestions(){ const p = pool(S.src).length; const n = S.count === 'all' ? p : S.count === 'custom' ? +S.countN || 0 : +S.count; return Math.min(Math.max(n, 0), p); }
 function secsFor(n, cfg){ return cfg.time === 'none' ? 0 : cfg.time === 'auto' ? n * 120 : Math.max(1, +cfg.timeN || 0) * 60; }
 
 function openSetup(){
   S = lastCfg();
-  $('#stSrc').innerHTML = [['all', 'Tất cả'], ['wrong', 'Chỉ câu sai'], ['todo', 'Câu sai chưa chữa'], ['right', 'Chỉ câu đúng']]
+  $('#stSrc').innerHTML = [['all', 'Tất cả'], ['wrong', 'Chỉ câu sai'], ['todo', 'Câu sai chưa chữa'], ['right', 'Chỉ câu đúng'],
+      ...(hasMarks ? [['marked', '🚩 Câu đánh dấu'], ['wrongMarked', 'Sai hoặc đánh dấu']] : [])]
     .map(([v, t]) => `<button type="button" class="chip" data-v="${v}" ${pool(v).length ? '' : 'disabled'}>${t} (${pool(v).length})</button>`).join('');
   if (!pool(S.src).length) S.src = 'all';
   $('#stCountN').value = S.countN; $('#stTimeN').value = S.timeN;
@@ -880,8 +899,8 @@ function renderQuiz(){
   $('#qzCount').textContent = `${answered}/${n}`;
   $('#qzBar').style.width = (answered / n * 100) + '%';
   $('#qzLegend').innerHTML = practice
-    ? `<span><i style="background:var(--ok)"></i>${items.filter(x => x.ok === true).length} đúng</span><span><i style="background:var(--bad)"></i>${items.filter(x => x.ok === false).length} sai</span><span><i style="background:var(--warn);border-radius:50%"></i>Đánh dấu</span>`
-    : `<span><i style="background:var(--accent)"></i>Đã làm</span><span><i style="background:var(--surface-2);border:1px solid var(--border)"></i>Chưa làm</span><span><i style="background:var(--warn);border-radius:50%"></i>Đánh dấu</span>`;
+    ? `<span><i style="background:var(--ok)"></i>${items.filter(x => x.ok === true).length} đúng</span><span><i style="background:var(--bad)"></i>${items.filter(x => x.ok === false).length} sai</span><span><i style="background:var(--warn);border-radius:50%"></i>Đánh dấu tạm</span>`
+    : `<span><i style="background:var(--accent)"></i>Đã làm</span><span><i style="background:var(--surface-2);border:1px solid var(--border)"></i>Chưa làm</span><span><i style="background:var(--warn);border-radius:50%"></i>Đánh dấu tạm</span>`;
   $('#qzGrid').innerHTML = items.map((x, i) => {
     const st = x.checked ? (x.ok ? 'ok' : 'bad') : x.pick.length ? 'done' : '';
     return `<button data-i="${i}" class="${st}${x.flag ? ' flag' : ''}${i === cur ? ' cur' : ''}">${i + 1}</button>`;
@@ -889,7 +908,7 @@ function renderQuiz(){
   const reveal = practice && it.checked;
   $('#qzCard').innerHTML = `<article class="q">
     <div class="qh"><span class="qn">Câu ${cur + 1}/${n}</span>${reveal ? statusTag(it) : ''}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
-      <span class="sp"></span><button class="btn sm" id="qzFlag"${it.flag ? ' style="border-color:var(--warn);color:var(--warn)"' : ''}>${it.flag ? '★ Đã đánh dấu' : '☆ Đánh dấu'}</button></div>
+      <span class="sp"></span><button class="btn sm" id="qzFlag"${it.flag ? ' style="border-color:var(--warn);color:var(--warn)"' : ''}>${it.flag ? '★ Đã đánh dấu tạm' : '☆ Đánh dấu tạm'}</button></div>
     <p class="qt">${esc(it.q.question).trim()}</p>
     <div class="opts" id="qzOpts">${optsHTML(it, {reveal, interactive: true})}</div>
     ${practice && multi && !it.checked ? `<div class="sum">Đã chọn ${it.pick.length}/${it.q.cor.length}</div>` : ''}
@@ -1012,6 +1031,7 @@ function renderHome(){
       <div class="sc"><b>${pct}%</b><span>${e.correct}/${e.total} câu đúng (bài gốc)</span></div>
       <div class="row">Đã chữa <b>${e.reviewedWrong || 0}/${e.wrong || 0}</b> câu sai</div>
       <div class="bar"><i style="width:${rp}%"></i></div>
+      ${e.marked ? `<div class="row">🚩 <b>${e.marked}</b> câu đánh dấu khi thi</div>` : ''}
       <div class="row"><b>${e.notes || 0}</b> ghi chú · <b>${e.attempts || 0}</b> lượt làm lại${la}</div>
       <div class="foot"><span>Mở lúc ${e.openedAt ? fmtDate(e.openedAt) : '—'}</span><button class="del" data-del="${esc(e.id)}" title="Xóa đề này khỏi tài khoản">Xóa</button></div>
     </div>`;
@@ -1104,25 +1124,52 @@ function metaFields(){
   const wrong = Q.filter(q => q.ok !== true), last = D.attempts[0];
   return {name: fileName, qid: questionsId, total: Q.length, correct: Q.length - wrong.length, wrong: wrong.length,
     reviewedWrong: wrong.filter(q => D.reviewed[q.no]).length, notes: Object.keys(D.notes).length, attempts: D.attempts.length,
+    hasMarks, marked: hasMarks ? Q.filter(q => q.marked).length : null,
     lastAttempt: last ? {at: last.at, correct: last.items.filter(x => x.ok).length, total: last.items.length} : null,
     updatedAt: Date.now()};
 }
 
 // Mở một đề: cloud là nguồn chính; giữ thêm dữ liệu trên máy mới hơn lần cập nhật cloud cuối (làm lúc offline/chưa đăng nhập)
 // và dữ liệu từ file export vừa import (inc)
-Cloud.openExam = (inc, copyNotesFrom) => {
+// fresh = vừa import file (không phải mở từ danh sách/bản lưu)
+Cloud.openExam = (inc, fresh) => {
   if (!Cloud.user || !fileId) return;
-  const id = fileId; openedId = id; stop(examSubs);
+  let id = fileId; openedId = id; stop(examSubs);
   return track((async () => {
-    const [m, p, a, sp] = await Promise.all([getDoc(ref('exams', id)), getDoc(ref('exams', id, 'data', 'progress')), getDocs(col('exams', id, 'attempts')),
-      copyNotesFrom ? getDoc(ref('exams', copyNotesFrom, 'data', 'progress')) : null]);
+    let m = await getDoc(ref('exams', id));
+    // Mục lưu bằng mã cũ (chỉ băm câu hỏi, trước 10/2026) mà đúng là bài làm này: dùng lại mục đó thay vì tạo mục trùng
+    if (!m.exists() && id !== questionsId) {
+      const lg = await getDoc(ref('exams', questionsId));
+      if (lg.exists() && openedId === id) {
+        const old = normalize(JSON.parse((await Cloud.fetchExam(questionsId)).text));
+        if (openedId === id && hash(JSON.stringify(old.map(q => [q.no, q.question, q.sel.join(',')]))) === id) {
+          id = fileId = openedId = questionsId; m = lg;
+          const ev = store.get('ev-file', null); if (ev) store.set('ev-file', {...ev, id});
+        }
+      }
+    }
     if (openedId !== id) return;
-    let merged;
-    if (!m.exists()) {
-      const s = JSON.stringify(Q.map(q => q.src)), n = Math.ceil(s.length / CHUNK) || 1, b = writeBatch(db);
-      for (let i = 0; i < n; i++) b.set(ref('exams', id, 'data', 'q' + i), {part: s.slice(i * CHUNK, (i + 1) * CHUNK)});
-      b.set(ref('exams', id), {chunks: n, createdAt: Date.now()}, {merge: true});
+    // Bài làm mới của một đề đã có ghi chú ở lần làm khác: hỏi có chép ghi chú sang không
+    let copyFrom = null;
+    if (!m.exists() && fresh) {
+      const sib = Cloud.exams.find(e => (e.qid || e.id) === questionsId && e.id !== id && e.notes);
+      if (sib && confirm(`Đây là một lần làm khác của đề "${sib.name}" (đã có ${sib.notes} ghi chú).\nChép các ghi chú đó sang bài làm này?`)) copyFrom = sib.id;
+    }
+    const [p, a, sp] = await Promise.all([getDoc(ref('exams', id, 'data', 'progress')), getDocs(col('exams', id, 'attempts')),
+      copyFrom ? getDoc(ref('exams', copyFrom, 'data', 'progress')) : null]);
+    if (openedId !== id) return;
+    // Ghi (lại) câu hỏi khi mục mới, hoặc khi file vừa import có thêm dữ liệu (vd. 🚩 marked_for_review) mà cloud chưa có;
+    // không ghi đè bản có 🚩 bằng file cũ không có trường này
+    const srcText = JSON.stringify(Q.map(q => q.src)), srcHash = hash(srcText), md = m.exists() ? m.data() : null;
+    if (!md || (md.srcHash !== srcHash && (hasMarks || !md.hasMarks))) {
+      const n = Math.ceil(srcText.length / CHUNK) || 1, b = writeBatch(db);
+      for (let i = 0; i < n; i++) b.set(ref('exams', id, 'data', 'q' + i), {part: srcText.slice(i * CHUNK, (i + 1) * CHUNK)});
+      for (let i = n; i < (md?.chunks || 0); i++) b.delete(ref('exams', id, 'data', 'q' + i));
+      b.set(ref('exams', id), {chunks: n, srcHash, ...(md ? {} : {createdAt: Date.now()})}, {merge: true});
       await b.commit();
+    }
+    let merged;
+    if (!md) {
       merged = {reviewed: {...D.reviewed}, notes: {...D.notes}, attempts: [...D.attempts]};
     } else {
       const pd = p.data() || {};

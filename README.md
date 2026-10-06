@@ -6,6 +6,7 @@ Web tĩnh xem lại và làm lại bài thi trắc nghiệm từ file JSON kết
 - Xem từng câu: đáp án đã chọn, đáp án đúng, lọc đúng/sai, tìm kiếm, bấm số câu để nhảy tới câu
 - Làm lại: tất cả / câu sai / câu đúng, 10 / 20 / tùy chỉnh số câu, thi thử hoặc luyện tập, đếm ngược thời gian, xáo trộn câu và đáp án
 - **Ghi chú** bên cạnh mỗi câu (tự lưu khi gõ), màn tổng hợp ghi chú có tìm kiếm, sắp xếp, tải về `.md`
+- Hiển thị câu **🚩 đánh dấu khi thi** (trường `marked_for_review` từ script export): lọc, thống kê đúng/sai, làm lại riêng các câu này
 - Đánh dấu câu **đã chữa**, lọc câu chưa chữa/đã chữa, làm lại riêng các câu sai chưa chữa
 - Tự lưu bài đang làm, câu đã chữa và lịch sử các lượt làm lại vào localStorage (theo từng đề)
 - **Đồng bộ nhiều thiết bị** qua Firebase (đăng nhập Google): danh sách đề đã lưu, câu đã chữa, ghi chú, lịch sử làm lại và bài đang làm dở
