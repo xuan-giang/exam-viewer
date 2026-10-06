@@ -9,6 +9,7 @@ Web tĩnh xem lại và làm lại bài thi trắc nghiệm từ file JSON kết
 - Hiển thị câu **🚩 đánh dấu khi thi** (trường `marked_for_review` từ script export): lọc, thống kê đúng/sai, làm lại riêng các câu này
 - Đánh dấu câu **đã chữa**, lọc câu chưa chữa/đã chữa, làm lại riêng các câu sai chưa chữa
 - Tự lưu bài đang làm, câu đã chữa và lịch sử các lượt làm lại vào localStorage (theo từng đề)
+- **Câu sai nhiều lần** (màn danh sách đề, cần đăng nhập): gom mọi đề + lượt làm lại theo nội dung câu hỏi, lọc ≥2/3/4 lần, làm lại bộ câu này; kết quả ghi về đúng đề gốc
 - **Đồng bộ nhiều thiết bị** qua Firebase (đăng nhập Google): danh sách đề đã lưu, câu đã chữa, ghi chú, lịch sử làm lại và bài đang làm dở
 - **Export** toàn bộ dữ liệu ra file JSON để import lại trên máy khác
 

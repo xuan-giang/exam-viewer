@@ -202,6 +202,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .exam .foot{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-top:4px;gap:8px}
 .exam .del{border:0;background:none;color:var(--muted);font-size:12px;padding:2px 4px}
 .exam .del:hover{color:var(--bad)}
+.banner.rep .chips{margin:0}
 .home-empty{text-align:center;color:var(--muted);padding:48px 16px;background:var(--surface);border:1px dashed var(--border);border-radius:12px}
 #btnAuth .sync-saving{color:var(--warn)}
 #btnAuth .sync-offline,#btnAuth .sync-error{color:var(--bad)}
@@ -262,6 +263,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <div class="who" id="homeWho"></div>
   </div>
   <div id="homeResume"></div>
+  <div id="homeStats"></div>
   <div id="homeList"></div>
 </section>
 
@@ -400,6 +402,8 @@ const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33
 
 // Q: câu hỏi của đề; D: dữ liệu ôn tập của đề (lưu theo fileId = băm nội dung câu hỏi)
 // fileId: mã của một bài làm (câu hỏi + đáp án đã chọn); questionsId: mã bộ câu hỏi, để nhận ra các lần làm cùng một đề
+// virtual: đang mở bộ "câu sai nhiều lần" gom từ nhiều đề (không lưu, không có ghi chú/đã chữa; kết quả làm lại ghi về đề gốc)
+let virtual = false;
 // hasMarks: file có trường marked_for_review (export bằng script mới); file cũ thì ẩn mọi thứ liên quan 🚩
 let Q = [], byNo = new Map(), fileName = '', fileId = '', questionsId = '', hasMarks = false, view = 'drop';
 // Đồng bộ cloud: module Firebase cuối trang gắn các hàm vào đây; khi chưa tải được hoặc chưa đăng nhập, web chạy offline như cũ
@@ -409,7 +413,7 @@ const EXTRA = ['reviewed', 'reviewed_at', 'retry_stats', 'note', 'note_updated_a
 
 /* ---------- Dữ liệu ôn tập ---------- */
 const dataKey = () => 'ev-data:' + fileId;
-function saveData(){ if (!store.set(dataKey(), D)) toast('Bộ nhớ trình duyệt đầy, hãy Export để giữ dữ liệu'); }
+function saveData(){ if (virtual) return; if (!store.set(dataKey(), D)) toast('Bộ nhớ trình duyệt đầy, hãy Export để giữ dữ liệu'); }
 const isFixed = q => !!D.reviewed[q.no];
 function stats(){
   const s = {};
@@ -467,7 +471,7 @@ function load(text, name, {restoring, id} = {}){
   try {
     const raw = JSON.parse(text);
     flushNotes(); Cloud.flush?.();
-    Q = normalize(raw); fileName = name;
+    Q = normalize(raw); fileName = name; virtual = false;
     byNo = new Map(Q.map(q => [q.no, q]));
     hasMarks = Q.some(q => typeof q.src.marked_for_review === 'boolean');
     questionsId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
@@ -522,8 +526,10 @@ function show(v){
   view = v;
   $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes'; $('#home').hidden = v !== 'home';
   $('#fname').textContent = ['review', 'notes', 'quiz'].includes(v) ? fileName : '';
-  $('#btnPractice').hidden = $('#btnNotes').hidden = v !== 'review';
-  $('#btnReload').hidden = $('#btnExport').hidden = v !== 'review' && v !== 'notes';
+  $('#btnPractice').hidden = v !== 'review';
+  $('#btnNotes').hidden = v !== 'review' || virtual;
+  $('#btnReload').hidden = v !== 'review' && v !== 'notes';
+  $('#btnExport').hidden = (v !== 'review' && v !== 'notes') || virtual;
   $('#navToggle').hidden = !['review', 'quiz'].includes(v);
   updateNotesBtn(); renderAuth();
   autosizeAll();
@@ -584,6 +590,11 @@ function bannerHTML(){
   const fixInfo = wrong.length ? `<span>Đã chữa <b>${wrongFixed}/${wrong.length}</b> câu sai</span>` : '';
   const marked = items.filter(x => x.q.marked), markedOk = marked.filter(x => x.ok === true).length;
   const c = RV.ctx, pq = c.kind === 'file' && QZ === null ? pendingQuiz() : null;
+  if (c.kind === 'file' && virtual) return `<div class="big" style="color:var(--bad)">${total}</div>
+    <div class="stats"><span>câu sai từ <b>${REP.th}</b> lần trở lên</span><span>Gom từ <b>${new Set(Q.map(q => q.origin.examId)).size}</b> đề</span>
+      <span>Lần gần nhất vẫn sai: <b>${Q.filter(q => !q.rep.last.ok).length}</b> câu</span></div>
+    <div class="acts"><button class="btn primary" data-act="vall">Làm lại tất cả</button>
+    <button class="btn" data-act="setup">Làm lại (tùy chọn)</button><button class="btn" data-act="home">Về danh sách đề</button></div>`;
   if (c.kind === 'file') return `<div class="big">${pct}%</div>
     <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${total - nOk}</b></span>${fixInfo}
       ${hasMarks ? `<span>🚩 Đánh dấu <b>${marked.length}</b> câu${marked.length ? ` (${marked.length - markedOk} sai · ${markedOk} đúng)` : ''}</span>` : ''}
@@ -605,6 +616,9 @@ function bannerHTML(){
     <button class="btn" data-act="setup">Cài đặt mới</button>
     <button class="btn" data-act="file">Về bài gốc</button></div>`;
 }
+const originTag = q => q.origin ? `<span class="tag src" title="Đề gốc">${esc(q.origin.name.replace(/\.json$/i, ''))} · câu ${esc(q.origin.no)}</span>` : '';
+const repTag = q => `<span class="tag bad">Sai ${q.rep.wrong}/${q.rep.total} lần</span>`
+  + `<span class="tag ${q.rep.last.ok ? 'ok' : 'bad'}">Gần nhất: ${q.rep.last.ok ? 'Đúng' : 'Sai'}</span>` + originTag(q);
 const markTag = q => q.marked ? '<span class="tag mark" title="Câu bạn bấm Mark for review trên trang thi">🚩 Đánh dấu khi thi</span>' : '';
 function gridCls(it){ return (it.ok === true ? 'ok' : it.ok === false ? 'bad' : '') + (isFixed(it.q) ? ' fixed' : '') + (D.notes[it.q.no] ? ' noted' : ''); }
 
@@ -624,6 +638,7 @@ function renderReview(){
     + `<span><b style="color:var(--ok)">✓</b> ${items.filter(x => isFixed(x.q)).length} đã chữa</span>`;
   RV.filter = RV.fix = RV.mark = 'all'; RV.term = ''; $('#search').value = '';
   $('#rvMarkFilters').hidden = !hasMarks;
+  $('#rvFixFilters').hidden = virtual;
   $$('#rvFilters button, #rvFixFilters button, #rvMarkFilters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
   $('#rvBanner').innerHTML = bannerHTML();
 
@@ -634,14 +649,14 @@ function renderReview(){
   $('#rvList').innerHTML = items.map((it, i) => {
     const multi = it.q.cor.length > 1;
     const num = c.kind === 'file' ? esc(it.q.no) : i + 1;
-    return `<article class="q wn" id="rv${i}" data-i="${i}"><div class="qbody">
-      <div class="qh"><span class="qn">Câu ${num}</span>${statusTag(it)}${markTag(it.q)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
-        ${c.kind !== 'file' ? `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>` : statTag(it.q)}
-        <span class="sp"></span>${fixBtn(it.q)}</div>
+    return `<article class="q${virtual ? '' : ' wn'}" id="rv${i}" data-i="${i}"><div class="qbody">
+      <div class="qh"><span class="qn">Câu ${num}</span>${virtual && c.kind === 'file' ? repTag(it.q) : statusTag(it)}${markTag(it.q)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
+        ${c.kind !== 'file' ? (virtual ? originTag(it.q) : `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>`) : statTag(it.q)}
+        <span class="sp"></span>${virtual ? '' : fixBtn(it.q)}</div>
       <p class="qt">${esc(it.q.question).trim()}</p>
       <div class="opts">${optsHTML(it, {reveal: true})}</div>
       <div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>
-    </div>${noteBox(it.q)}</article>`;
+    </div>${virtual ? '' : noteBox(it.q)}</article>`;
   }).join('');
   $$('#rvList textarea[data-note]').forEach(autosize);
   applyFilter(); observe();
@@ -659,7 +674,7 @@ function refreshUI(){
   if (view === 'review') {
     RV.items.forEach((it, i) => {
       const card = $('#rv' + i); if (!card) return;
-      card.querySelector('[data-fix]').outerHTML = fixBtn(it.q);
+      const fb = card.querySelector('[data-fix]'); if (fb) fb.outerHTML = fixBtn(it.q);
       const t = card.querySelector('textarea[data-note]'), n = D.notes[it.q.no];
       if (t && document.activeElement !== t && t.value !== (n?.text || '')) { t.value = n?.text || ''; autosize(t); }
       t?.closest('.note').classList.toggle('has', !!n);
@@ -806,6 +821,8 @@ $('#rvBanner').onclick = e => {
   if (a === 'wrong') startQuiz(pool('wrong'), {...lastCfg(), count: 'all'});
   if (a === 'wrongTodo') startQuiz(pool('todo'), {...lastCfg(), count: 'all'});
   if (a === 'marked') startQuiz(pool('marked'), {...lastCfg(), count: 'all'});
+  if (a === 'vall') startQuiz(Q, {...lastCfg(), count: 'all'});
+  if (a === 'home') showHome();
   if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
   if (a === 'retrySame') startQuiz(RV.items.map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
 };
@@ -920,7 +937,7 @@ function renderQuiz(){
 }
 // Tự lưu bài đang làm: câu hỏi tham chiếu theo số câu của đề, đồng hồ theo mốc thời gian tuyệt đối
 function saveQuiz(){
-  if (!QZ) return;
+  if (!QZ || virtual) return; // bộ ảo không khôi phục được sau khi tải lại trang nên không lưu bài dở
   const {cfg, cur, startAt, endAt, items} = QZ;
   const st = {fileId, savedAt: Date.now(), cfg, cur, startAt, endAt,
     items: items.map(({q, order, pick, flag, checked, ok}) => ({no: q.no, order, pick, flag, checked, ok}))};
@@ -935,7 +952,7 @@ function pendingQuiz(){
     .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0] || null;
 }
 function resumeQuiz(){ const s = pendingQuiz(); if (!s) return; store.set('ev-quiz', s); restoreQuiz(); }
-function endQuizStore(){ store.del('ev-quiz'); Cloud.clearQuiz?.(); }
+function endQuizStore(){ if (virtual) return; store.del('ev-quiz'); Cloud.clearQuiz?.(); }
 function restoreQuiz(){
   const s = store.get('ev-quiz', null);
   if (!s || s.fileId !== fileId || !s.items?.every(x => byNo.has(x.no))) return store.del('ev-quiz');
@@ -969,7 +986,8 @@ function submitQuiz(timeout){
   const attempt = {id: now.toString(36) + Math.random().toString(36).slice(2, 6), at: now, startedAt: QZ.startAt,
     mode: QZ.cfg.mode, secs, timeout, cfg: QZ.cfg,
     items: QZ.items.map(x => ({no: x.q.no, order: x.order, pick: x.pick, ok: same(x.pick, x.q.cor)}))};
-  D.attempts.unshift(attempt); saveData(); Cloud.addAttempt?.(attempt);
+  D.attempts.unshift(attempt); saveData();
+  if (virtual) { Cloud.addVirtualAttempt?.(attempt); REP.sig = ''; } else Cloud.addAttempt?.(attempt);
   QZ = null;
   showAttempt(attempt);
   if (timeout) setTimeout(() => alert('Hết giờ! Bài đã được nộp tự động.'), 50);
@@ -1021,6 +1039,8 @@ function renderHome(){
   const q = Cloud.quiz, ex = Cloud.exams.find(e => e.id === q?.examId);
   $('#homeResume').innerHTML = q && ex ? `<div class="banner"><div class="stats"><span>Bài đang làm dở: <b>${esc(ex.name.replace(/\.json$/i, ''))}</b></span>
     <span>Lưu lúc ${fmtDate(q.savedAt)}</span></div><div class="acts"><button class="btn primary" data-open="${esc(q.examId)}" data-resume="1">Tiếp tục làm</button></div></div>` : '';
+  $('#homeStats').innerHTML = repeatHTML();
+  if (Cloud.listReady && Cloud.exams.length) computeRepeat();
   if (!Cloud.listReady) { $('#homeList').innerHTML = '<div class="home-empty">Đang tải danh sách đề…</div>'; return; }
   if (!Cloud.exams.length) { $('#homeList').innerHTML = '<div class="home-empty">Chưa có đề nào.<br>Bấm <b>+ Thêm đề</b> hoặc kéo thả file JSON vào đây. Đề sẽ được lưu lên tài khoản để mở trên máy khác.</div>'; return; }
   $('#homeList').innerHTML = '<div class="exams">' + Cloud.exams.map(e => {
@@ -1037,6 +1057,64 @@ function renderHome(){
     </div>`;
   }).join('') + '</div>';
 }
+/* ---------- Câu sai nhiều lần (gom mọi đề + lượt làm lại) ---------- */
+// Nhận diện câu theo nội dung câu hỏi (số câu và thứ tự đáp án đổi giữa các lần làm)
+let REP = {sig: '', rows: null, th: 2, busy: false, nExams: 0, err: ''};
+const qKey = t => hash((t || '').replace(/\s+/g, ' ').trim().toLowerCase());
+function aggregate(all){
+  const rows = new Map();
+  all.forEach(({exam, questions, attempts}) => {
+    const by = new Map(questions.map(q => [q.no, q])), t0 = exam.createdAt || 0;
+    const add = (q, ok, at) => {
+      if (typeof ok !== 'boolean') return;
+      const k = qKey(q.question);
+      let r = rows.get(k);
+      if (!r) rows.set(k, r = {q, exam, wrong: 0, total: 0, last: null});
+      r.total++; if (!ok) r.wrong++;
+      if (!r.last || at >= r.last.at) r.last = {at, ok};
+    };
+    questions.forEach(q => add(q, q.ok, Date.parse(q.src.exported_at) || t0));
+    attempts.forEach(a => (a.items || []).forEach(x => { const q = by.get(x.no); if (q) add(q, x.ok, a.at || 0); }));
+  });
+  return [...rows.values()];
+}
+async function computeRepeat(){
+  const sig = Cloud.exams.map(e => `${e.id}:${e.updatedAt || 0}:${e.attempts || 0}`).join('|');
+  if (REP.busy || REP.sig === sig) return;
+  REP.busy = true;
+  try { const all = await Cloud.loadAll(); REP.rows = aggregate(all); REP.nExams = all.length; REP.err = ''; }
+  catch (e) { REP.rows = REP.rows || []; REP.err = e.code || e.message; }
+  REP.sig = sig; REP.busy = false;
+  renderHome();
+}
+const repRows = () => (REP.rows || []).filter(r => r.wrong >= REP.th)
+  .sort((a, b) => b.wrong - a.wrong || b.wrong / b.total - a.wrong / a.total);
+function repeatHTML(){
+  if (!Cloud.listReady || !Cloud.exams.length) return '';
+  if (!REP.rows) return '<div class="banner"><div class="stats"><span>Đang thống kê câu sai nhiều lần…</span></div></div>';
+  const rows = repRows(), still = rows.filter(r => !r.last.ok).length;
+  return `<div class="banner rep">
+    <div class="big" style="color:var(${rows.length ? '--bad' : '--ok'})">${rows.length}</div>
+    <div class="stats"><span>câu sai từ <b>${REP.th}</b> lần trở lên</span>
+      ${rows.length ? `<span>Lần gần nhất vẫn sai: <b>${still}</b> câu</span>` : ''}
+      <span>Gom ${REP.nExams} đề và các lượt làm lại${REP.busy ? ' · đang cập nhật…' : ''}</span>
+      ${REP.err ? `<span style="color:var(--bad)">Lỗi thống kê: ${esc(REP.err)}</span>` : ''}</div>
+    <div class="chips">${[2, 3, 4].map(t => `<button class="chip${REP.th === t ? ' on' : ''}" data-th="${t}">≥ ${t} lần</button>`).join('')}</div>
+    <div class="acts">${rows.length ? '<button class="btn primary" data-rep="1">Xem &amp; làm lại</button>' : ''}</div>
+  </div>`;
+}
+// Mở bộ ảo: mỗi câu lấy từ đề mở gần nhất có câu đó, đánh số lại 1..N; nhớ đề gốc để ghi kết quả làm lại về đúng chỗ
+function openRepeat(){
+  const rows = repRows(); if (!rows.length) return;
+  flushNotes(); Cloud.flush?.();
+  Q = normalize(rows.map((r, i) => ({...r.q.src, question_no: i + 1})));
+  Q.forEach((q, i) => { q.origin = {examId: rows[i].exam.id, no: rows[i].q.no, name: rows[i].exam.name || 'Đề'}; q.rep = rows[i]; q.marked = false; });
+  byNo = new Map(Q.map(q => [q.no, q]));
+  virtual = true; hasMarks = false; fileName = `Câu sai ≥ ${REP.th} lần`; fileId = 'virtual'; questionsId = '';
+  D = {reviewed: {}, notes: {}, attempts: []};
+  showFileReview();
+}
+
 async function openCloudExam(id, resume){
   if (id === fileId && Q.length) { showFileReview(); Cloud.openExam(null); if (resume) resumeQuiz(); return; }
   toast('Đang tải đề…');
@@ -1050,6 +1128,8 @@ $('#home').onclick = e => {
   if (del) { const ex = Cloud.exams.find(x => x.id === del.dataset.del);
     if (confirm(`Xóa đề "${ex?.name}" cùng toàn bộ ghi chú, câu đã chữa và lịch sử làm lại khỏi tài khoản?`)) Cloud.deleteExam(del.dataset.del);
     return; }
+  const th = e.target.closest('[data-th]'); if (th) { REP.th = +th.dataset.th; renderHome(); return; }
+  if (e.target.closest('[data-rep]')) return openRepeat();
   const o = e.target.closest('[data-open]'); if (o) openCloudExam(o.dataset.open, !!o.dataset.resume);
 };
 $('#home').onkeydown = e => { if (e.key === 'Enter' && e.target.matches('.exam')) e.target.click(); };
@@ -1089,7 +1169,7 @@ if (saved && load(saved.text, saved.name, {restoring: true, id: saved.id || lega
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, getDoc, getDocs, setDoc,
-  deleteDoc, writeBatch, onSnapshot, query, orderBy, deleteField } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+  deleteDoc, writeBatch, onSnapshot, query, orderBy, deleteField, increment } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const ALLOWED = 'ngxuangiang2020@gmail.com';
 const CHUNK = 300000; // ký tự/doc câu hỏi, dưới giới hạn 1 MiB/doc kể cả ký tự nhiều byte
@@ -1238,6 +1318,27 @@ Cloud.saveQuiz = st => {
 };
 Cloud.clearQuiz = () => { clearTimeout(quizTimer); if (Cloud.user) track(deleteDoc(ref('state', 'quiz'))); };
 
+// Câu hỏi + lượt làm lại của mọi đề, để thống kê câu sai nhiều lần (đề lỗi thì bỏ qua)
+Cloud.loadAll = async () => {
+  const res = await Promise.allSettled(Cloud.exams.map(async e => {
+    const [{text}, a] = await Promise.all([Cloud.fetchExam(e.id), getDocs(col('exams', e.id, 'attempts'))]);
+    return {exam: e, questions: normalize(JSON.parse(text)), attempts: a.docs.map(x => x.data())};
+  }));
+  return res.filter(r => r.status === 'fulfilled').map(r => r.value);
+};
+// Lượt làm bộ ảo: tách theo đề gốc, mỗi đề nhận một lượt gồm các câu của nó (số câu gốc)
+Cloud.addVirtualAttempt = a => {
+  if (!Cloud.user) return;
+  const groups = new Map();
+  a.items.forEach(x => { const o = byNo.get(x.no)?.origin; if (!o) return;
+    if (!groups.has(o.examId)) groups.set(o.examId, []);
+    groups.get(o.examId).push({...x, no: o.no}); });
+  groups.forEach((items, eid) => {
+    const part = {...a, id: `${a.id}-${eid}`, items, cfg: {...a.cfg, src: 'repeat'}};
+    track(setDoc(ref('exams', eid, 'attempts', part.id), part));
+    track(setDoc(ref('exams', eid), {attempts: increment(1), updatedAt: Date.now()}, {merge: true}));
+  });
+};
 Cloud.fetchExam = async id => {
   const m = await getDoc(ref('exams', id));
   if (!m.exists()) throw new Error('Đề không còn trên tài khoản');
