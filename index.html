@@ -391,7 +391,8 @@ function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = fals
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
 
 // Q: câu hỏi của đề; D: dữ liệu ôn tập của đề (lưu theo fileId = băm nội dung câu hỏi)
-let Q = [], byNo = new Map(), fileName = '', fileId = '', view = 'drop';
+// fileId: mã của một bài làm (câu hỏi + đáp án đã chọn); questionsId: mã bộ câu hỏi, để nhận ra các lần làm cùng một đề
+let Q = [], byNo = new Map(), fileName = '', fileId = '', questionsId = '', view = 'drop';
 // Đồng bộ cloud: module Firebase cuối trang gắn các hàm vào đây; khi chưa tải được hoặc chưa đăng nhập, web chạy offline như cũ
 const Cloud = window.Cloud = {ready: false, user: null, exams: [], listReady: false, quiz: null, sync: 'idle'};
 let D = {reviewed: {}, notes: {}, attempts: []};
@@ -453,13 +454,15 @@ function mergeData(a, b){
           attempts: [...a.attempts, ...b.attempts.filter(x => !ids.has(x.id))].sort((x, y) => y.at - x.at)};
 }
 
-function load(text, name, {restoring} = {}){
+function load(text, name, {restoring, id} = {}){
   try {
     const raw = JSON.parse(text);
     flushNotes(); Cloud.flush?.();
     Q = normalize(raw); fileName = name;
     byNo = new Map(Q.map(q => [q.no, q]));
-    fileId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
+    questionsId = hash(JSON.stringify(Q.map(q => [q.no, q.question])));
+    // Mã cũ (trước 10/2026) chỉ băm câu hỏi nên 2 lần làm cùng đề đè lên nhau; đề đã lưu giữ nguyên mã được truyền vào
+    fileId = id || hash(JSON.stringify(Q.map(q => [q.no, q.question, q.sel.join(',')])));
     D = store.get(dataKey(), null) || {reviewed: {}, attempts: []};
     D.notes ||= {};
     let inc = null;
@@ -474,10 +477,15 @@ function load(text, name, {restoring} = {}){
                     : `Đã nhập ${Object.keys(inc.reviewed).length} câu đã chữa, ${Object.keys(inc.notes).length} ghi chú, ${inc.attempts.length} lượt làm`);
       } else if (nHave) toast(`Đã khôi phục ${Object.keys(D.reviewed).length} câu đã chữa, ${Object.keys(D.notes).length} ghi chú, ${D.attempts.length} lượt làm của đề này`);
       // chỉ giữ câu hỏi trong bản lưu file, dữ liệu ôn tập nằm ở ev-data
-      store.set('ev-file', {name, text: JSON.stringify(Q.map(q => q.src))});
+      store.set('ev-file', {name, id: fileId, text: JSON.stringify(Q.map(q => q.src))});
     }
     showFileReview();
-    if (!restoring && Cloud.user) Cloud.openExam(inc);
+    if (!restoring && Cloud.user) {
+      // Bài làm mới của một đề đã có ghi chú ở lần làm khác: hỏi có chép ghi chú sang không
+      const sib = !id && Cloud.exams.find(e => (e.qid || e.id) === questionsId && e.id !== fileId && e.notes);
+      const copy = sib && confirm(`Đây là một lần làm khác của đề "${sib.name}" (đã có ${sib.notes} ghi chú).\nChép các ghi chú đó sang bài làm này?`);
+      Cloud.openExam(inc, copy ? sib.id : null);
+    }
     return true;
   } catch (e) { $('#err').textContent = 'Lỗi đọc file: ' + e.message; return false; }
 }
@@ -1014,7 +1022,7 @@ async function openCloudExam(id, resume){
   toast('Đang tải đề…');
   try {
     const r = await Cloud.fetchExam(id);
-    if (load(r.text, r.name) && resume) resumeQuiz();
+    if (load(r.text, r.name, {id}) && resume) resumeQuiz();
   } catch (e) { toast('Không tải được đề: ' + (e.code || e.message)); }
 }
 $('#home').onclick = e => {
@@ -1051,7 +1059,8 @@ $('#theme').onclick = () => { const r = document.documentElement;
 show('drop');
 store.del('ev-hist');
 const saved = store.get('ev-file', null);
-if (saved && load(saved.text, saved.name, {restoring: true})) restoreQuiz();
+const legacyId = t => { try { return hash(JSON.stringify(normalize(JSON.parse(t)).map(q => [q.no, q.question]))); } catch { return undefined; } };
+if (saved && load(saved.text, saved.name, {restoring: true, id: saved.id || legacyId(saved.text)})) restoreQuiz();
 </script>
 
 <script type="module">
@@ -1093,7 +1102,7 @@ addEventListener('offline', () => setSyncState('offline'));
 
 function metaFields(){
   const wrong = Q.filter(q => q.ok !== true), last = D.attempts[0];
-  return {name: fileName, total: Q.length, correct: Q.length - wrong.length, wrong: wrong.length,
+  return {name: fileName, qid: questionsId, total: Q.length, correct: Q.length - wrong.length, wrong: wrong.length,
     reviewedWrong: wrong.filter(q => D.reviewed[q.no]).length, notes: Object.keys(D.notes).length, attempts: D.attempts.length,
     lastAttempt: last ? {at: last.at, correct: last.items.filter(x => x.ok).length, total: last.items.length} : null,
     updatedAt: Date.now()};
@@ -1101,11 +1110,12 @@ function metaFields(){
 
 // Mở một đề: cloud là nguồn chính; giữ thêm dữ liệu trên máy mới hơn lần cập nhật cloud cuối (làm lúc offline/chưa đăng nhập)
 // và dữ liệu từ file export vừa import (inc)
-Cloud.openExam = inc => {
+Cloud.openExam = (inc, copyNotesFrom) => {
   if (!Cloud.user || !fileId) return;
   const id = fileId; openedId = id; stop(examSubs);
   return track((async () => {
-    const [m, p, a] = await Promise.all([getDoc(ref('exams', id)), getDoc(ref('exams', id, 'data', 'progress')), getDocs(col('exams', id, 'attempts'))]);
+    const [m, p, a, sp] = await Promise.all([getDoc(ref('exams', id)), getDoc(ref('exams', id, 'data', 'progress')), getDocs(col('exams', id, 'attempts')),
+      copyNotesFrom ? getDoc(ref('exams', copyNotesFrom, 'data', 'progress')) : null]);
     if (openedId !== id) return;
     let merged;
     if (!m.exists()) {
@@ -1121,7 +1131,9 @@ Cloud.openExam = inc => {
       merged = mergeData({reviewed: pd.reviewed || {}, notes: pd.notes || {}, attempts: a.docs.map(x => x.data())},
                          {reviewed: D.reviewed, notes: D.notes, attempts: D.attempts});
       if (inc) merged = mergeData(merged, inc);
+      if (m.data().name) { fileName = m.data().name; if (view !== 'home') $('#fname').textContent = fileName; } // giữ tên gốc, không đổi theo tên file export vừa import
     }
+    if (sp?.exists()) merged = mergeData(merged, {reviewed: {}, notes: sp.data().notes || {}, attempts: []});
     if (openedId !== id) return;
     applyCloudData(merged);
     const have = new Set(a.docs.map(x => x.id)), b = writeBatch(db);
