@@ -591,7 +591,7 @@ function bannerHTML(){
   const marked = items.filter(x => x.q.marked), markedOk = marked.filter(x => x.ok === true).length;
   const c = RV.ctx, pq = c.kind === 'file' && QZ === null ? pendingQuiz() : null;
   if (c.kind === 'file' && virtual) return `<div class="big" style="color:var(--bad)">${total}</div>
-    <div class="stats"><span>câu sai từ <b>${REP.th}</b> lần trở lên</span><span>Gom từ <b>${new Set(Q.map(q => q.origin.examId)).size}</b> đề</span>
+    <div class="stats"><span>${thLabel()}${REP.still ? ', lần gần nhất vẫn sai' : ''} (không trùng)</span><span>Gom từ <b>${new Set(Q.map(q => q.origin.examId)).size}</b> đề</span>
       <span>Lần gần nhất vẫn sai: <b>${Q.filter(q => !q.rep.last.ok).length}</b> câu</span></div>
     <div class="acts"><button class="btn primary" data-act="vall">Làm lại tất cả</button>
     <button class="btn" data-act="setup">Làm lại (tùy chọn)</button><button class="btn" data-act="home">Về danh sách đề</button></div>`;
@@ -1057,25 +1057,39 @@ function renderHome(){
     </div>`;
   }).join('') + '</div>';
 }
-/* ---------- Câu sai nhiều lần (gom mọi đề + lượt làm lại) ---------- */
-// Nhận diện câu theo nội dung câu hỏi (số câu và thứ tự đáp án đổi giữa các lần làm)
-let REP = {sig: '', rows: null, th: 2, busy: false, nExams: 0, err: ''};
-const qKey = t => hash((t || '').replace(/\s+/g, ' ').trim().toLowerCase());
+/* ---------- Làm lại câu sai (gom mọi đề + lượt làm lại, chống trùng) ---------- */
+// th: số lần sai tối thiểu (1 = mọi câu từng sai); still: chỉ câu lần gần nhất vẫn sai
+let REP = {sig: '', rows: null, busy: false, nExams: 0, dups: [], occ: 0, err: '', th: 1, still: false, ...store.get('ev-rep', {})};
+const saveRep = () => store.set('ev-rep', {th: REP.th, still: REP.still});
+// Một câu = một nội dung câu hỏi: bỏ dấu câu, khoảng trắng, hoa/thường (số câu và thứ tự đáp án đổi giữa các lần làm)
+const qKey = t => hash((t || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, ''));
+// Lựa chọn so theo NỘI DUNG đáp án, không theo chữ cái (trang thi xáo đáp án)
+const pickSig = q => qKey(q.question) + '#' + q.sel.map(k => qKey(q.answers[k])).sort().join('|');
 function aggregate(all){
+  // File trùng lần làm: mọi cặp (câu, lựa chọn) của nó đều có trong một file khác
+  // (export lại cùng bài, hoặc bản export chỉ tab Marked) -> không đếm lại kết quả gốc của nó
+  const pairs = all.map(({questions}) => new Set(questions.filter(q => typeof q.ok === 'boolean').map(pickSig)));
+  const dup = all.map((_, i) => all.some((_, j) => j !== i && (pairs[j].size > pairs[i].size || (pairs[j].size === pairs[i].size && j < i))
+    && [...pairs[i]].every(x => pairs[j].has(x))));
   const rows = new Map();
-  all.forEach(({exam, questions, attempts}) => {
-    const by = new Map(questions.map(q => [q.no, q])), t0 = exam.createdAt || 0;
+  let occ = 0;
+  // Đề không trùng trước, để câu đại diện lấy từ bản đầy đủ, mở gần nhất
+  all.map((x, i) => i).sort((a, b) => dup[a] - dup[b]).forEach(i => {
+    const {exam, questions, attempts} = all[i], by = new Map(questions.map(q => [q.no, q])), t0 = exam.createdAt || 0;
     const add = (q, ok, at) => {
       if (typeof ok !== 'boolean') return;
       const k = qKey(q.question);
       let r = rows.get(k);
       if (!r) rows.set(k, r = {q, exam, wrong: 0, total: 0, last: null});
-      r.total++; if (!ok) r.wrong++;
+      r.total++; if (!ok) { r.wrong++; occ++; }
       if (!r.last || at >= r.last.at) r.last = {at, ok};
     };
-    questions.forEach(q => add(q, q.ok, Date.parse(q.src.exported_at) || t0));
+    if (!dup[i]) questions.forEach(q => add(q, q.ok, Date.parse(q.src.exported_at) || t0));
+    // Lượt làm lại trên web luôn là lần làm thật, kể cả khi làm từ một file trùng
     attempts.forEach(a => (a.items || []).forEach(x => { const q = by.get(x.no); if (q) add(q, x.ok, a.at || 0); }));
   });
+  REP.dups = all.filter((_, i) => dup[i]).map(x => x.exam.name || 'Đề');
+  REP.occ = occ;
   return [...rows.values()];
 }
 async function computeRepeat(){
@@ -1087,19 +1101,23 @@ async function computeRepeat(){
   REP.sig = sig; REP.busy = false;
   renderHome();
 }
-const repRows = () => (REP.rows || []).filter(r => r.wrong >= REP.th)
+const thLabel = () => REP.th === 1 ? 'câu từng sai' : `câu sai từ ${REP.th} lần trở lên`;
+const repRows = () => (REP.rows || []).filter(r => r.wrong >= REP.th && (!REP.still || !r.last.ok))
   .sort((a, b) => b.wrong - a.wrong || b.wrong / b.total - a.wrong / a.total);
 function repeatHTML(){
   if (!Cloud.listReady || !Cloud.exams.length) return '';
-  if (!REP.rows) return '<div class="banner"><div class="stats"><span>Đang thống kê câu sai nhiều lần…</span></div></div>';
-  const rows = repRows(), still = rows.filter(r => !r.last.ok).length;
+  if (!REP.rows) return '<div class="banner"><div class="stats"><span>Đang gom câu sai từ các đề…</span></div></div>';
+  const rows = repRows(), still = rows.filter(r => !r.last.ok).length, wrongAll = REP.rows.filter(r => r.wrong).length;
+  const dupNote = REP.dups.length ? `<span title="${esc(REP.dups.join('\n'))}">Bỏ qua ${REP.dups.length} file trùng lần làm</span>` : '';
   return `<div class="banner rep">
     <div class="big" style="color:var(${rows.length ? '--bad' : '--ok'})">${rows.length}</div>
-    <div class="stats"><span>câu sai từ <b>${REP.th}</b> lần trở lên</span>
-      ${rows.length ? `<span>Lần gần nhất vẫn sai: <b>${still}</b> câu</span>` : ''}
-      <span>Gom ${REP.nExams} đề và các lượt làm lại${REP.busy ? ' · đang cập nhật…' : ''}</span>
+    <div class="stats"><span><b>Làm lại câu sai</b>: ${thLabel()}${REP.still ? ', lần gần nhất vẫn sai' : ''}</span>
+      ${!REP.still && rows.length ? `<span>Lần gần nhất vẫn sai: <b>${still}</b> câu</span>` : ''}
+      <span>${REP.occ} lượt sai, gộp còn <b>${wrongAll}</b> câu không trùng · từ ${REP.nExams} đề và các lượt làm lại${REP.busy ? ' · đang cập nhật…' : ''}</span>
+      ${dupNote}
       ${REP.err ? `<span style="color:var(--bad)">Lỗi thống kê: ${esc(REP.err)}</span>` : ''}</div>
-    <div class="chips">${[2, 3, 4].map(t => `<button class="chip${REP.th === t ? ' on' : ''}" data-th="${t}">≥ ${t} lần</button>`).join('')}</div>
+    <div class="chips">${[1, 2, 3].map(t => `<button class="chip${REP.th === t ? ' on' : ''}" data-th="${t}">${t === 1 ? 'Từng sai' : `≥ ${t} lần`}</button>`).join('')}
+      <button class="chip${REP.still ? ' on' : ''}" data-still="1" title="Bỏ các câu lần làm gần nhất đã đúng">Gần nhất vẫn sai</button></div>
     <div class="acts">${rows.length ? '<button class="btn primary" data-rep="1">Xem &amp; làm lại</button>' : ''}</div>
   </div>`;
 }
@@ -1110,7 +1128,8 @@ function openRepeat(){
   Q = normalize(rows.map((r, i) => ({...r.q.src, question_no: i + 1})));
   Q.forEach((q, i) => { q.origin = {examId: rows[i].exam.id, no: rows[i].q.no, name: rows[i].exam.name || 'Đề'}; q.rep = rows[i]; q.marked = false; });
   byNo = new Map(Q.map(q => [q.no, q]));
-  virtual = true; hasMarks = false; fileName = `Câu sai ≥ ${REP.th} lần`; fileId = 'virtual'; questionsId = '';
+  virtual = true; hasMarks = false; fileId = 'virtual'; questionsId = '';
+  fileName = (REP.th === 1 ? 'Câu từng sai' : `Câu sai ≥ ${REP.th} lần`) + (REP.still ? ' · gần nhất vẫn sai' : '');
   D = {reviewed: {}, notes: {}, attempts: []};
   showFileReview();
 }
@@ -1128,7 +1147,8 @@ $('#home').onclick = e => {
   if (del) { const ex = Cloud.exams.find(x => x.id === del.dataset.del);
     if (confirm(`Xóa đề "${ex?.name}" cùng toàn bộ ghi chú, câu đã chữa và lịch sử làm lại khỏi tài khoản?`)) Cloud.deleteExam(del.dataset.del);
     return; }
-  const th = e.target.closest('[data-th]'); if (th) { REP.th = +th.dataset.th; renderHome(); return; }
+  const th = e.target.closest('[data-th]'); if (th) { REP.th = +th.dataset.th; saveRep(); renderHome(); return; }
+  if (e.target.closest('[data-still]')) { REP.still = !REP.still; saveRep(); renderHome(); return; }
   if (e.target.closest('[data-rep]')) return openRepeat();
   const o = e.target.closest('[data-open]'); if (o) openCloudExam(o.dataset.open, !!o.dataset.resume);
 };
