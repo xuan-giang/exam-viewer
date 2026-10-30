@@ -155,6 +155,18 @@ button.opt:disabled:hover{border-color:var(--border)}
 .opt.wrong .m{color:var(--bad)}
 .sum{margin-top:12px;font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
 .sum b{color:var(--text)}
+/* Giải thích đáp án (trường explanation từ script export) */
+.exp{margin-top:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)}
+.exp summary{cursor:pointer;padding:8px 12px;font-size:13px;font-weight:600;color:var(--accent);list-style:none}
+.exp summary::-webkit-details-marker{display:none}
+.exp summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
+.exp[open] summary::before{transform:rotate(90deg)}
+.exp .eb{padding:0 12px 12px;font-size:14px;line-height:1.6}
+.exp .et{white-space:pre-wrap;overflow-wrap:anywhere}
+.exp .el{margin:10px 0 0;padding-left:18px}
+.exp .el a{color:var(--accent);overflow-wrap:anywhere}
+.exp .ei{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.exp .ei img{max-width:100%;height:auto;border:1px solid var(--border);border-radius:6px;background:#fff}
 .nav{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
 .hint{color:var(--muted);font-size:12px;text-align:center;margin-top:10px}
 
@@ -565,6 +577,19 @@ const noteBox = q => { const n = D.notes[q.no];
   return `<div class="note${n ? ' has' : ''}"><label>Ghi chú <span data-note-meta="${esc(q.no)}">${noteMeta(n)}</span></label>
     <textarea data-note="${esc(q.no)}" placeholder="Vì sao sai, kiến thức cần nhớ, link tài liệu…">${esc(n?.text || '')}</textarea></div>`; };
 const fixBtn = q => `<button class="btn sm${isFixed(q) ? ' fixed-on' : ''}" data-fix="${esc(q.no)}" title="${isFixed(q) ? 'Chữa lúc ' + fmtDate(D.reviewed[q.no]) + ' · bấm để bỏ' : 'Đánh dấu là đã chữa câu này'}">${isFixed(q) ? '✓ Đã chữa' : '☐ Đánh dấu đã chữa'}</button>`;
+// Giải thích đáp án: chỉ có trong file export bằng script mới; link/ảnh chỉ nhận http(s)
+const httpUrl = u => typeof u === 'string' && /^https?:\/\//i.test(u);
+function expHTML(q){
+  const s = q.src, text = typeof s.explanation === 'string' ? s.explanation.trim() : '';
+  const links = (Array.isArray(s.explanation_links) ? s.explanation_links : []).filter(l => httpUrl(l?.url));
+  const imgs = (Array.isArray(s.explanation_images) ? s.explanation_images : []).filter(httpUrl);
+  if (!text && !links.length && !imgs.length) return '';
+  return `<details class="exp"><summary>Giải thích đáp án</summary><div class="eb">
+    ${text ? `<div class="et">${esc(text)}</div>` : ''}
+    ${imgs.length ? `<div class="ei">${imgs.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Hình minh hoạ" loading="lazy"></a>`).join('')}</div>` : ''}
+    ${links.length ? `<ul class="el">${links.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text || l.url)}</a></li>`).join('')}</ul>` : ''}
+  </div></details>`;
+}
 function statTag(q){
   const s = ST[q.no]; if (!s) return '';
   return `<span class="tag src" title="Số lần làm lại câu này">Làm lại ${s.times} lần · đúng ${s.correct}</span>`;
@@ -657,6 +682,7 @@ function renderReview(){
       <p class="qt">${esc(it.q.question).trim()}</p>
       <div class="opts">${optsHTML(it, {reveal: true})}</div>
       <div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>
+      ${expHTML(it.q)}
     </div>${virtual ? '' : noteBox(it.q)}</article>`;
   }).join('');
   $$('#rvList textarea[data-note]').forEach(autosize);
@@ -931,7 +957,7 @@ function renderQuiz(){
     <p class="qt">${esc(it.q.question).trim()}</p>
     <div class="opts" id="qzOpts">${optsHTML(it, {reveal, interactive: true})}</div>
     ${practice && multi && !it.checked ? `<div class="sum">Đã chọn ${it.pick.length}/${it.q.cor.length}</div>` : ''}
-    ${reveal ? `<div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>` : ''}
+    ${reveal ? `<div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>${expHTML(it.q)}` : ''}
     <div class="nav"><button class="btn" id="qzPrev" ${cur ? '' : 'disabled'}>← Câu trước</button>
       ${cur < n - 1 ? '<button class="btn primary" id="qzNext">Câu tiếp →</button>' : '<button class="btn primary" id="qzEnd">Nộp bài</button>'}</div>
   </article>`;
