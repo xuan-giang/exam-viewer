@@ -7,18 +7,18 @@
 <style>
 :root{
   --bg:#f6f7f9;--surface:#fff;--surface-2:#f0f2f5;--border:#e1e4e8;
-  --text:#1b1f24;--muted:#5b6470;--accent:#2f6fed;--accent-bg:#e8effd;
+  --text:#1b1f24;--muted:#5b6470;--accent:#2f6fed;--accent-bg:#e8effd;--ch-a:#2f6fed;--ch-w:#c0362c;
   --ok:#1a7f4b;--ok-bg:#e6f5ec;--bad:#c0362c;--bad-bg:#fcebea;--warn:#b7791f;--warn-bg:#fdf3e1;
   --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#111418;--surface:#1a1e24;--surface-2:#232830;--border:#2f353e;
-  --text:#e6e9ed;--muted:#9aa4b1;--accent:#6b9bff;--accent-bg:#1c2a45;
+  --text:#e6e9ed;--muted:#9aa4b1;--accent:#6b9bff;--accent-bg:#1c2a45;--ch-a:#5a8df5;--ch-w:#e2604f;
   --ok:#4cc38a;--ok-bg:#15301f;--bad:#f07167;--bad-bg:#3a1a18;--warn:#f0b54a;--warn-bg:#3a2c12;--shadow:none;
 }}
 :root[data-theme="dark"]{
   --bg:#111418;--surface:#1a1e24;--surface-2:#232830;--border:#2f353e;
-  --text:#e6e9ed;--muted:#9aa4b1;--accent:#6b9bff;--accent-bg:#1c2a45;
+  --text:#e6e9ed;--muted:#9aa4b1;--accent:#6b9bff;--accent-bg:#1c2a45;--ch-a:#5a8df5;--ch-w:#e2604f;
   --ok:#4cc38a;--ok-bg:#15301f;--bad:#f07167;--bad-bg:#3a1a18;--warn:#f0b54a;--warn-bg:#3a2c12;--shadow:none;
 }
 *{box-sizing:border-box}
@@ -201,8 +201,61 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .home-head h2{margin:0;font-size:20px;flex:1;min-width:160px}
 .home-head .who{font-size:13px;color:var(--muted);width:100%;margin-top:-6px}
 .exams{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
-.exam{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);cursor:pointer;display:flex;flex-direction:column;gap:6px}
-.exam:hover,.exam:focus-visible{border-color:var(--accent);outline:none}
+.exam{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
+.atts{display:flex;flex-direction:column;gap:6px;margin:4px 0}
+.att{display:flex;gap:6px;align-items:stretch}
+.att .open{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;text-align:left;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:13px;color:var(--muted)}
+.att .open:hover,.att .open:focus-visible{border-color:var(--accent);outline:none}
+.att .open b{color:var(--text);font-size:15px;font-variant-numeric:tabular-nums}
+.att .open .n{color:var(--text);font-weight:600}
+.exam .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.hist i{font-style:normal;font-weight:700;margin-left:3px}
+.hist i.y{color:var(--ok)}
+.hist i.x{color:var(--bad)}
+.scope{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;font-size:13px}
+/* Màn phân tích */
+#analysis{max-width:1100px;margin:0 auto;padding:16px}
+.an-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.an-head h2{margin:0;font-size:20px;flex:1;min-width:160px}
+.an-head select{max-width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:14px}
+.an-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+.an-tile,.an-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);min-width:0}
+.an-tile .l{font-size:13px;color:var(--muted)}
+.an-tile .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+.an-tile .s{font-size:12px;color:var(--muted)}
+.an-card{margin-bottom:14px}
+.an-card h3{margin:0 0 2px;font-size:15px}
+.an-card .sub{margin:0 0 10px;font-size:13px;color:var(--muted)}
+.an-note{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.5}
+.an-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:14px;margin-bottom:14px}
+.an-two .an-card{margin-bottom:0}
+.abar{display:grid;grid-template-columns:minmax(90px,170px) 1fr 62px;gap:8px;align-items:center;padding:3px 0;font-size:13px;border-radius:4px}
+.abar:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.abar .an{overflow-wrap:anywhere}
+.abar .tr{position:relative;height:14px;background:var(--surface-2)}
+.abar .tr i{display:block;height:100%;background:var(--ch-a);border-radius:0 4px 4px 0}
+.abar .tr i.w{background:var(--ch-w)}
+.abar .tr u{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--text)}
+.abar .v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.abar.few{color:var(--muted)}
+.abar.few .tr i{opacity:.55}
+.abar:hover .tr i{opacity:.8}
+.an-weak{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border);font-size:14px}
+.an-weak .m{font-size:12px;color:var(--muted)}
+.an-q{padding:8px 0;border-top:1px solid var(--border);font-size:14px;margin-top:8px}
+.an-q .t{overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
+#anLine{width:100%;display:block}
+#anLine text{font-size:12px;fill:var(--muted)}
+#anLine .grid{stroke:var(--border)}
+#anLine .limit{stroke:var(--text)}
+#anLine .ln{fill:none;stroke:var(--ch-a);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+#anLine .dot{fill:var(--ch-a);stroke:var(--surface);stroke-width:2}
+#anLine .cross{stroke:var(--muted)}
+#anLine .val{fill:var(--text);font-weight:600}
+#anTip{position:fixed;z-index:50;pointer-events:none;max-width:280px;padding:7px 10px;border-radius:8px;background:var(--text);color:var(--surface);font-size:12px;line-height:1.5;white-space:pre-line}
+.an-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.an-table td,.an-table th{padding:4px 6px;border-top:1px solid var(--border);text-align:left}
+.an-card details summary{cursor:pointer;font-size:13px;color:var(--muted);margin-top:8px}
 .exam h3{margin:0 0 2px;font-size:15px;overflow-wrap:anywhere}
 .exam .sc{display:flex;align-items:baseline;gap:8px}
 .exam .sc b{font-size:24px;font-variant-numeric:tabular-nums}
@@ -250,6 +303,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <button class="btn" id="btnNotes" hidden title="Xem tổng hợp các ghi chú">Ghi chú</button>
   <button class="btn" id="btnExport" hidden title="Tải về file JSON gồm câu hỏi, câu đã chữa và lịch sử làm lại">Export</button>
   <button class="btn" id="btnReload" hidden title="Mở file đề hoặc file đã export">Mở file</button>
+  <button class="btn" id="btnAnalysis" hidden title="Phân tích vùng còn yếu, chủ đề câu hỏi, dự đoán khả năng đậu">📊<span class="lbl"> Phân tích</span></button>
   <button class="btn" id="btnHome" hidden title="Trang chủ: danh sách đề và ôn tập từ tất cả đề">🏠<span class="lbl"> Trang chủ</span></button>
   <button class="btn" id="btnAuth" hidden></button>
   <button class="btn" id="theme" title="Đổi giao diện sáng/tối">◐</button>
@@ -277,6 +331,13 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <div id="homeResume"></div>
   <div id="homeStats"></div>
   <div id="homeList"></div>
+</section>
+
+<!-- Phân tích theo chủ đề, dự đoán đậu -->
+<section id="analysis" hidden>
+  <div class="an-head"><h2>Phân tích</h2><select id="anScope" aria-label="Phạm vi phân tích"></select></div>
+  <div id="anBody"></div>
+  <div id="anTip" hidden></div>
 </section>
 
 <!-- Review (file gốc hoặc kết quả lần làm) -->
@@ -536,7 +597,7 @@ function exportData(){
 
 function show(v){
   view = v;
-  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes'; $('#home').hidden = v !== 'home';
+  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes'; $('#home').hidden = v !== 'home'; $('#analysis').hidden = v !== 'analysis';
   $('#fname').textContent = ['review', 'notes', 'quiz'].includes(v) ? fileName : '';
   $('#btnPractice').hidden = v !== 'review';
   $('#btnNotes').hidden = v !== 'review' || virtual;
@@ -609,6 +670,11 @@ function showAttempt(a){
   renderReview(); show('review');
 }
 
+function attemptInfo(){
+  const g = groupOf(fileId), a = g?.atts.find(x => x.id === fileId); if (!a) return '';
+  const n = g.atts.filter(x => !x.dup).length;
+  return `<span title="${esc(g.name)}">${a.dup ? 'Bản trùng của một lần làm' : `Lần làm <b>${a.no}/${n}</b>`} của đề này</span>`;
+}
 function bannerHTML(){
   const items = RV.items, total = items.length, nOk = items.filter(x => x.ok === true).length, pct = Math.round(nOk / total * 100);
   const wrong = items.filter(x => x.ok !== true), wrongFixed = wrong.filter(x => isFixed(x.q)).length;
@@ -624,13 +690,15 @@ function bannerHTML(){
     <div class="stats"><span>Bài gốc: <b>${total}</b> câu</span><span>Đúng <b>${nOk}</b></span><span>Sai <b>${total - nOk}</b></span>${fixInfo}
       ${hasMarks ? `<span>🚩 Đánh dấu <b>${marked.length}</b> câu${marked.length ? ` (${marked.length - markedOk} sai · ${markedOk} đúng)` : ''}</span>` : ''}
       ${D.attempts.length ? `<span>Đã làm lại <b>${D.attempts.length}</b> lượt</span>` : ''}
-      ${Object.keys(D.notes).length ? `<span>Ghi chú <b>${Object.keys(D.notes).length}</b> câu</span>` : ''}</div>
+      ${Object.keys(D.notes).length ? `<span>Ghi chú <b>${Object.keys(D.notes).length}</b> câu</span>` : ''}
+      ${attemptInfo()}</div>
     <div class="acts">${pq ? `<button class="btn primary" data-act="resume">Tiếp tục bài đang làm (${pq.items.filter(x => x.pick.length).length}/${pq.items.length})</button>` : ''}
     <button class="btn${pq ? '' : ' primary'}" data-act="setup">Làm lại bài</button>
     <button class="btn" data-act="notes">Ghi chú${Object.keys(D.notes).length ? ` (${Object.keys(D.notes).length})` : ''}</button>
     ${wrong.length ? '<button class="btn" data-act="wrong">Làm lại câu sai</button>' : ''}
     ${wrong.length - wrongFixed && wrongFixed ? '<button class="btn" data-act="wrongTodo">Làm câu sai chưa chữa</button>' : ''}
     ${marked.length ? '<button class="btn" data-act="marked">Làm câu đánh dấu</button>' : ''}
+    ${groupOf(fileId)?.rows.some(r => r.wrong) ? '<button class="btn" data-act="scope" title="Gom câu sai của mọi lần làm đề này">Ôn câu sai cả đề</button>' : ''}
     <button class="btn mob" data-act="export">Export</button><button class="btn mob" data-act="open">Mở file</button></div>`;
   const a = c.attempt;
   return `<div class="big" style="color:var(${pct >= 72 ? '--ok' : '--bad'})">${pct}%</div>
@@ -641,10 +709,13 @@ function bannerHTML(){
     <button class="btn" data-act="setup">Cài đặt mới</button>
     <button class="btn" data-act="file">Về bài gốc</button></div>`;
 }
+// Lịch sử một câu qua mọi lần làm + làm lại, cũ đến mới
+const histHTML = r => r?.hist?.length > 1 ? `<span class="tag src hist" title="${esc(r.hist.map(h => `${h.retake ? 'Làm lại' : 'Bài gốc'}${h.at ? ' ' + fmtDate(h.at) : ''}: ${h.ok ? 'Đúng' : 'Sai'}`).join('\n'))}">Lịch sử${r.hist.slice(-8).map(h => `<i class="${h.ok ? 'y' : 'x'}">${h.ok ? '✓' : '✗'}</i>`).join('')}</span>` : '';
+function fillHist(){ if (REP.byKey) $$('#rvList [data-hist]').forEach(el => { el.innerHTML = histHTML(REP.byKey.get(el.dataset.hist)); }); }
 const originTag = q => q.origin ? `<span class="tag src" title="Đề gốc">${esc(q.origin.name.replace(/\.json$/i, ''))} · câu ${esc(q.origin.no)}</span>` : '';
 const repTag = ({rep: r, ...q}) => (!r.total ? '' : (r.wrong ? `<span class="tag bad">Sai ${r.wrong}/${r.total} lần</span>` : `<span class="tag ok">Đúng ${r.total}/${r.total} lần</span>`)
   + `<span class="tag ${r.last.ok ? 'ok' : 'bad'}">Gần nhất: ${r.last.ok ? 'Đúng' : 'Sai'}</span>`)
-  + (r.fixed ? '<span class="tag ok" title="Đã đánh dấu chữa ở đề gốc">✓ Đã chữa</span>' : '') + originTag(q);
+  + (r.fixed ? '<span class="tag ok" title="Đã đánh dấu chữa ở đề gốc">✓ Đã chữa</span>' : '') + histHTML(r) + originTag(q);
 const markTag = q => q.marked ? '<span class="tag mark" title="Câu bạn bấm Mark for review trên trang thi">🚩 Đánh dấu khi thi</span>' : '';
 function gridCls(it){ return (it.ok === true ? 'ok' : it.ok === false ? 'bad' : '') + (isFixed(it.q) ? ' fixed' : '') + (D.notes[it.q.no] ? ' noted' : ''); }
 
@@ -677,7 +748,7 @@ function renderReview(){
     const num = c.kind === 'file' ? esc(it.q.no) : i + 1;
     return `<article class="q${virtual ? '' : ' wn'}" id="rv${i}" data-i="${i}"><div class="qbody">
       <div class="qh"><span class="qn">Câu ${num}</span>${virtual && c.kind === 'file' ? repTag(it.q) : statusTag(it)}${markTag(it.q)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
-        ${c.kind !== 'file' ? (virtual ? originTag(it.q) : `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>`) : statTag(it.q)}
+        ${c.kind !== 'file' ? (virtual ? originTag(it.q) : `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>`) : statTag(it.q)}${virtual ? '' : `<span data-hist="${qKey(it.q.question)}"></span>`}
         <span class="sp"></span>${virtual ? '' : fixBtn(it.q)}</div>
       <p class="qt">${esc(it.q.question).trim()}</p>
       <div class="opts">${optsHTML(it, {reveal: true})}</div>
@@ -686,6 +757,7 @@ function renderReview(){
     </div>${virtual ? '' : noteBox(it.q)}</article>`;
   }).join('');
   $$('#rvList textarea[data-note]').forEach(autosize);
+  fillHist();
   applyFilter(); observe();
 }
 
@@ -850,6 +922,7 @@ $('#rvBanner').onclick = e => {
   if (a === 'marked') startQuiz(pool('marked'), {...lastCfg(), count: 'all'});
   if (a === 'vall') startQuiz(Q, {...lastCfg(), count: 'all'});
   if (a === 'home') showHome();
+  if (a === 'scope') { setScope(groupOf(fileId)?.id); showHome(); }
   if (a === 'retryWrong') startQuiz(RV.items.filter(x => x.ok !== true).map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
   if (a === 'retrySame') startQuiz(RV.items.map(x => x.q), RV.ctx.attempt.cfg || lastCfg());
 };
@@ -1015,7 +1088,8 @@ function submitQuiz(timeout){
     mode: QZ.cfg.mode, secs, timeout, cfg: QZ.cfg,
     items: QZ.items.map(x => ({no: x.q.no, order: x.order, pick: x.pick, ok: same(x.pick, x.q.cor)}))};
   D.attempts.unshift(attempt); saveData();
-  if (virtual) { Cloud.addVirtualAttempt?.(attempt); REP.sig = ''; } else Cloud.addAttempt?.(attempt);
+  if (virtual) Cloud.addVirtualAttempt?.(attempt); else Cloud.addAttempt?.(attempt);
+  REP.sig = '';
   QZ = null;
   showAttempt(attempt);
   if (timeout) setTimeout(() => alert('Hết giờ! Bài đã được nộp tự động.'), 50);
@@ -1049,7 +1123,8 @@ document.addEventListener('keydown', e => {
 function renderAuth(){
   const b = $('#btnAuth');
   b.hidden = !Cloud.ready;
-  $('#btnHome').hidden = !(Cloud.user && ['review', 'notes', 'drop'].includes(view));
+  $('#btnHome').hidden = !(Cloud.user && ['review', 'notes', 'drop', 'analysis'].includes(view));
+  $('#btnAnalysis').hidden = !(Cloud.user && ['review', 'notes', 'home'].includes(view));
   $('#dropAuth').hidden = !Cloud.ready || !!Cloud.user;
   $('#dropNote').textContent = Cloud.user ? `Đã đăng nhập ${Cloud.user.email}: đề và dữ liệu ôn tập được lưu lên tài khoản.`
     : 'Chưa đăng nhập: dữ liệu chỉ lưu trên trình duyệt này.';
@@ -1071,19 +1146,32 @@ function renderHome(){
   if (Cloud.listReady && Cloud.exams.length) computeRepeat();
   if (!Cloud.listReady) { $('#homeList').innerHTML = '<div class="home-empty">Đang tải danh sách đề…</div>'; return; }
   if (!Cloud.exams.length) { $('#homeList').innerHTML = '<div class="home-empty">Chưa có đề nào.<br>Bấm <b>+ Thêm đề</b> hoặc kéo thả file JSON vào đây. Đề sẽ được lưu lên tài khoản để mở trên máy khác.</div>'; return; }
-  $('#homeList').innerHTML = '<div class="exams">' + Cloud.exams.map(e => {
-    const pct = e.total ? Math.round(e.correct / e.total * 100) : 0, rp = e.wrong ? Math.round(e.reviewedWrong / e.wrong * 100) : 100;
-    const la = e.lastAttempt ? ` · gần nhất ${Math.round(e.lastAttempt.correct / e.lastAttempt.total * 100)}%` : '';
-    return `<div class="exam" tabindex="0" role="button" data-open="${esc(e.id)}">
-      <h3>${esc((e.name || 'Đề').replace(/\.json$/i, ''))}</h3>
-      <div class="sc"><b>${pct}%</b><span>${e.correct}/${e.total} câu đúng (bài gốc)</span></div>
-      <div class="row">Đã chữa <b>${e.reviewedWrong || 0}/${e.wrong || 0}</b> câu sai</div>
-      <div class="bar"><i style="width:${rp}%"></i></div>
-      ${e.marked ? `<div class="row">🚩 <b>${e.marked}</b> câu đánh dấu khi thi</div>` : ''}
-      <div class="row"><b>${e.notes || 0}</b> ghi chú · <b>${e.attempts || 0}</b> lượt làm lại${la}</div>
-      <div class="foot"><span>Mở lúc ${e.openedAt ? fmtDate(e.openedAt) : '—'}</span><button class="del" data-del="${esc(e.id)}" title="Xóa đề này khỏi tài khoản">Xóa</button></div>
-    </div>`;
-  }).join('') + '</div>';
+  $('#homeList').innerHTML = '<div class="exams">' + listGroups().map(groupCard).join('') + '</div>';
+}
+// Danh sách theo đề: đề chưa gom xong (vừa thêm, lỗi tải) đứng riêng
+function listGroups(){
+  const live = new Map(Cloud.exams.map(e => [e.id, e])), seen = new Set();
+  const gs = (REP.groups || []).map(g => ({...g, atts: g.atts.filter(x => live.has(x.id))})).filter(g => g.atts.length);
+  gs.forEach(g => g.atts.forEach(x => seen.add(x.id)));
+  Cloud.exams.filter(e => !seen.has(e.id)).forEach(e => gs.push({id: e.id, name: (e.name || 'Đề').replace(/\.json$/i, ''), rows: null, atts: [{id: e.id, no: 1, dup: false}]}));
+  const opened = g => Math.max(...g.atts.map(x => live.get(x.id).openedAt || 0));
+  return gs.sort((x, y) => opened(y) - opened(x));
+}
+function groupCard(g){
+  const live = id => Cloud.exams.find(e => e.id === id);
+  const real = g.atts.filter(x => !x.dup), retakes = g.atts.reduce((n, x) => n + (live(x.id).attempts || 0), 0);
+  const wrong = g.rows?.filter(r => r.wrong).length || 0, again = g.rows?.filter(r => r.wrong >= 2).length || 0, still = g.rows?.filter(r => r.last && !r.last.ok).length || 0;
+  return `<div class="exam">
+    <h3>${esc(g.name)}</h3>
+    <div class="row"><b>${real.length}</b> lần làm · <b>${retakes}</b> lượt làm lại</div>
+    ${g.rows ? `<div class="row"><b>${wrong}</b> câu từng sai · <b>${again}</b> câu sai lại · <b>${still}</b> câu gần nhất vẫn sai</div>` : ''}
+    <div class="atts">${[...g.atts].reverse().map(x => { const e = live(x.id), pct = e.total ? Math.round(e.correct / e.total * 100) : 0;
+      return `<div class="att"><button class="open" data-open="${esc(x.id)}" title="${esc(e.name || '')}${e.openedAt ? ' · mở lúc ' + fmtDate(e.openedAt) : ''}">
+        <span class="n">${x.dup ? 'Bản trùng' : 'Lần ' + x.no}</span><b>${pct}%</b><span>${e.correct}/${e.total} câu</span>
+        <span>Đã chữa ${e.reviewedWrong || 0}/${e.wrong || 0}</span>${e.marked ? `<span>🚩 ${e.marked}</span>` : ''}${e.notes ? `<span>${e.notes} ghi chú</span>` : ''}${e.lastAttempt ? `<span>Làm lại gần nhất ${Math.round(e.lastAttempt.correct / e.lastAttempt.total * 100)}%</span>` : ''}</button>
+        <button class="del" data-del="${esc(x.id)}" title="Xóa lần làm này khỏi tài khoản">Xóa</button></div>`; }).join('')}</div>
+    ${wrong ? `<div class="acts"><button class="btn sm primary" data-scope="${esc(g.id)}">Ôn câu sai đề này (${wrong})</button></div>` : ''}
+  </div>`;
 }
 /* ---------- Ôn tập từ tất cả đề (gom mọi đề + lượt làm lại, chống trùng) ---------- */
 // src: nguồn câu (all/wrong/todo/marked); th: số lần sai tối thiểu (1 = mọi câu từng sai); still: chỉ câu lần gần nhất vẫn sai
@@ -1093,6 +1181,11 @@ const saveRep = () => store.set('ev-rep', {src: REP.src, th: REP.th, still: REP.
 const qKey = t => hash((t || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, ''));
 // Lựa chọn so theo NỘI DUNG đáp án, không theo chữ cái (trang thi xáo đáp án)
 const pickSig = q => qKey(q.question) + '#' + q.sel.map(k => qKey(q.answers[k])).sort().join('|');
+// Trang thi đánh mã lượt tăng dần nên ưu tiên so mã lượt; file không có mã thì so thời gian
+const byTurn = (a, b) => a.aid && b.aid ? a.aid - b.aid : a.at - b.at;
+// Lượt có mã: giờ gửi lần đầu (createdAt) không đổi khi gửi lại; file cũ: giờ export
+const turnOf = ({exam, questions}) => { const s = questions[0]?.src || {}, aid = +s.attempt_id || 0;
+  return {aid, at: (aid && exam.createdAt) || Date.parse(s.exported_at) || exam.createdAt || 0}; };
 function aggregate(all){
   // File trùng lần làm: mọi cặp (câu, lựa chọn) của nó đều có trong một file khác
   // (export lại cùng bài, hoặc bản export chỉ tab Marked) -> không đếm lại kết quả gốc của nó
@@ -1103,37 +1196,62 @@ function aggregate(all){
   let occ = 0;
   // Đề không trùng trước, để câu đại diện lấy từ bản đầy đủ, mở gần nhất
   all.map((x, i) => i).sort((a, b) => dup[a] - dup[b]).forEach(i => {
-    const {exam, questions, attempts, reviewed = {}} = all[i], by = new Map(questions.map(q => [q.no, q])), t0 = exam.createdAt || 0;
+    const {exam, questions, attempts, reviewed = {}} = all[i], by = new Map(questions.map(q => [q.no, q])), turn = turnOf(all[i]);
     const row = q => {
       const k = qKey(q.question);
       let r = rows.get(k);
-      if (!r) rows.set(k, r = {q, exam, wrong: 0, total: 0, last: null, marked: false, fixed: false});
+      if (!r) rows.set(k, r = {q, exam, wrong: 0, total: 0, last: null, hist: [], marked: false, fixed: false});
       return r;
     };
-    const add = (q, ok, at) => {
+    const add = (q, ok, h) => {
       if (typeof ok !== 'boolean') return;
       const r = row(q);
       r.total++; if (!ok) { r.wrong++; occ++; }
-      if (!r.last || at >= r.last.at) r.last = {at, ok};
+      r.hist.push({...h, ok});
     };
     // 🚩 và "đã chữa" lấy từ mọi file (kể cả file trùng), kết quả gốc thì chỉ đếm file không trùng
     questions.forEach(q => { const r = row(q); if (q.marked) r.marked = true; if (reviewed[q.no]) r.fixed = true;
-      if (!dup[i]) add(q, q.ok, Date.parse(q.src.exported_at) || t0); });
+      if (!dup[i]) add(q, q.ok, turn); });
     // Lượt làm lại trên web luôn là lần làm thật, kể cả khi làm từ một file trùng
-    attempts.forEach(a => (a.items || []).forEach(x => { const q = by.get(x.no); if (q) add(q, x.ok, a.at || 0); }));
+    attempts.forEach(a => (a.items || []).forEach(x => { const q = by.get(x.no); if (q) add(q, x.ok, {aid: 0, at: a.at || 0, retake: true}); }));
   });
-  REP.dups = all.filter((_, i) => dup[i]).map(x => x.exam.name || 'Đề');
-  REP.occ = occ;
-  return [...rows.values()];
+  rows.forEach(r => { r.hist.sort(byTurn); r.last = r.hist.at(-1) || null; });
+  return {rows: [...rows.values()], occ, dupIds: new Set(all.filter((_, i) => dup[i]).map(x => x.exam.id)), dups: all.filter((_, i) => dup[i]).map(x => x.exam.name || 'Đề')};
 }
+// Cùng một đề: cùng exam_key, hoặc tập câu hỏi của file này nằm trọn trong file kia (không phụ thuộc thứ tự câu)
+function groupExams(all){
+  const sets = all.map(x => new Set(x.questions.map(q => qKey(q.question))));
+  const keys = all.map(x => x.questions[0]?.src.exam_key || '');
+  const parent = all.map((_, i) => i), find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  const within = (a, b) => a.size > 0 && [...a].every(x => b.has(x));
+  all.forEach((_, i) => all.forEach((_, j) => { if (i < j && ((keys[i] && keys[i] === keys[j]) || within(sets[i], sets[j]) || within(sets[j], sets[i]))) parent[find(i)] = find(j); }));
+  const by = new Map();
+  all.forEach((x, i) => { const r = find(i); if (!by.has(r)) by.set(r, []); by.get(r).push(i); });
+  return [...by.values()].map(idx => {
+    const items = idx.map(i => all[i]), {rows, occ, dupIds} = aggregate(items);
+    const big = idx.reduce((m, i) => sets[i].size > sets[m].size ? i : m, idx[0]);
+    let no = 0;
+    const atts = items.map(it => ({id: it.exam.id, ...turnOf(it), dup: dupIds.has(it.exam.id),
+        correct: it.questions.filter(q => q.ok === true).length, total: it.questions.filter(q => typeof q.ok === 'boolean').length}))
+      .sort((a, b) => a.dup - b.dup || byTurn(a, b)).map(a => ({...a, no: a.dup ? null : ++no}));
+    const named = items.map(it => it.questions[0]?.src.exam_name).find(Boolean);
+    return {id: keys[idx.find(i => keys[i])] || 'q' + hash([...sets[big]].sort().join()), name: named || (all[big].exam.name || 'Đề').replace(/\.json$/i, ''), items, rows, occ, atts};
+  });
+}
+const groupOf = id => REP.groups?.find(g => g.atts.some(x => x.id === id));
+const scopeGroup = () => REP.scope ? REP.groups?.find(g => g.id === REP.scope) : null;
+function setScope(id){ REP.scope = id || ''; REP.src = 'wrong'; REP.th = 1; REP.still = false; window.scrollTo(0, 0); }
 async function computeRepeat(){
   const sig = Cloud.exams.map(e => `${e.id}:${e.updatedAt || 0}:${e.attempts || 0}`).join('|');
-  if (REP.busy || REP.sig === sig) return;
+  if (REP.busy || REP.sig === sig || !Cloud.user) return;
   REP.busy = true;
-  try { const all = await Cloud.loadAll(); REP.rows = aggregate(all); REP.nExams = all.length; REP.err = ''; }
+  try { const all = await Cloud.loadAll(), a = aggregate(all);
+    Object.assign(REP, {rows: a.rows, dups: a.dups, occ: a.occ, groups: groupExams(all), byKey: new Map(a.rows.map(r => [qKey(r.q.question), r])), nExams: all.length, err: ''}); }
   catch (e) { REP.rows = REP.rows || []; REP.err = e.code || e.message; }
   REP.sig = sig; REP.busy = false;
   renderHome();
+  if (view === 'analysis') renderAnalysis();
+  if (view === 'review') { fillHist(); if (RV.ctx?.kind === 'file') $('#rvBanner').innerHTML = bannerHTML(); }
 }
 const thLabel = () => REP.th === 1 ? 'câu từng sai' : `câu sai từ ${REP.th} lần trở lên`;
 const SRC = {
@@ -1145,22 +1263,23 @@ const SRC = {
 if (!SRC[REP.src]) REP.src = 'wrong';
 const srcLabel = s => { const t = SRC[s].label(); return t[0].toUpperCase() + t.slice(1); };
 // "Toàn bộ" giữ thứ tự đề + số câu; các nguồn khác ưu tiên câu sai nhiều
-const repRows = (s = REP.src) => { const rows = (REP.rows || []).filter(SRC[s].ok);
+const repRows = (s = REP.src) => { const rows = (scopeGroup()?.rows || REP.rows || []).filter(SRC[s].ok);
   return s === 'all' ? rows : rows.sort((a, b) => b.wrong - a.wrong || b.wrong / b.total - a.wrong / a.total); };
 function repeatHTML(){
   if (!Cloud.listReady || !Cloud.exams.length) return '';
   if (!REP.rows) return '<div class="banner"><div class="stats"><span>Đang gom câu hỏi từ các đề…</span></div></div>';
-  const rows = repRows(), wrongAll = REP.rows.filter(r => r.wrong).length;
-  const dupNote = REP.dups.length ? `<span title="${esc(REP.dups.join('\n'))}">Bỏ qua ${REP.dups.length} file trùng lần làm</span>` : '';
+  const g = scopeGroup(), base = g?.rows || REP.rows, rows = repRows(), wrongAll = base.filter(r => r.wrong).length;
+  const dupNote = REP.dups.length && !g ? `<span title="${esc(REP.dups.join('\n'))}">Bỏ qua ${REP.dups.length} file trùng lần làm</span>` : '';
   return `<div class="banner rep">
     <div class="big" style="color:var(${!rows.length ? '--ok' : REP.src === 'all' || REP.src === 'marked' ? '--accent' : '--bad'})">${rows.length}</div>
-    <div class="stats"><span><b>Ôn tập từ tất cả đề</b>: ${SRC[REP.src].label()} (không trùng)</span>
-      <span><b>${REP.rows.length}</b> câu không trùng · ${REP.occ} lượt sai gộp còn <b>${wrongAll}</b> câu · từ ${REP.nExams} đề và các lượt làm lại${REP.busy ? ' · đang cập nhật…' : ''}</span>
+    <div class="stats"><span><b>Ôn tập ${g ? 'theo đề' : 'từ tất cả đề'}</b>: ${SRC[REP.src].label()} (không trùng)</span>
+      <span><b>${base.length}</b> câu không trùng · ${g?.occ ?? REP.occ} lượt sai gộp còn <b>${wrongAll}</b> câu · từ ${g ? g.atts.filter(x => !x.dup).length + ' lần làm' : (REP.groups?.length || 0) + ' đề, ' + REP.nExams + ' file'} và các lượt làm lại${REP.busy ? ' · đang cập nhật…' : ''}</span>
       ${dupNote}
       ${REP.err ? `<span style="color:var(--bad)">Lỗi thống kê: ${esc(REP.err)}</span>` : ''}</div>
+    ${g ? `<div class="scope"><span>Đề: <b>${esc(g.name)}</b></span><button class="chip" data-clearscope="1">✕ Xem tất cả đề</button></div>` : ''}
     <div class="chips">${Object.entries(SRC).map(([k, s]) => { const n = repRows(k).length;
       return `<button class="chip${REP.src === k ? ' on' : ''}" data-src="${k}"${n || REP.src === k ? '' : ' disabled'}>${s.chip} (${n})</button>`; }).join('')}</div>
-    ${REP.src === 'wrong' ? `<div class="chips">${[1, 2, 3].map(t => `<button class="chip${REP.th === t ? ' on' : ''}" data-th="${t}">${t === 1 ? 'Từng sai' : `≥ ${t} lần`}</button>`).join('')}
+    ${REP.src === 'wrong' ? `<div class="chips">${[1, 2, 3].map(t => `<button class="chip${REP.th === t ? ' on' : ''}" data-th="${t}">${t === 1 ? 'Từng sai' : t === 2 ? 'Sai lại (≥ 2 lần)' : `≥ ${t} lần`}</button>`).join('')}
       <button class="chip${REP.still ? ' on' : ''}" data-still="1" title="Bỏ các câu lần làm gần nhất đã đúng">Gần nhất vẫn sai</button></div>` : ''}
     <div class="acts">${rows.length ? `<button class="btn primary" data-rep="quiz">Làm ngay ${rows.length} câu</button>
       <button class="btn" data-rep="setup" title="Chọn số câu, thi thử/luyện tập, thời gian">Làm bài (tùy chọn)…</button>
@@ -1168,8 +1287,8 @@ function repeatHTML(){
   </div>`;
 }
 // Mở bộ ảo: mỗi câu lấy từ đề mở gần nhất có câu đó, đánh số lại 1..N; nhớ đề gốc để ghi kết quả làm lại về đúng chỗ
-function openRepeat(){
-  const rows = repRows(); if (!rows.length) return false;
+function openRepeat(rows = repRows(), label = srcLabel(REP.src), place = scopeGroup()?.name || 'tất cả đề'){
+  if (!rows.length) return false;
   flushNotes(); Cloud.flush?.();
   Q = normalize(rows.map((r, i) => ({...r.q.src, question_no: i + 1})));
   // ok của bộ ảo = tính trên mọi lần làm (từng sai -> sai), để lọc "câu từng sai" trong cài đặt làm bài
@@ -1177,8 +1296,8 @@ function openRepeat(){
     q.marked = r.marked; if (r.total) q.ok = !r.wrong; });
   byNo = new Map(Q.map(q => [q.no, q]));
   virtual = true; hasMarks = rows.some(r => r.marked); fileId = 'virtual'; questionsId = '';
-  vLabel = srcLabel(REP.src);
-  fileName = vLabel + ' · tất cả đề';
+  vLabel = label;
+  fileName = vLabel + ' · ' + place;
   D = {reviewed: {}, notes: {}, attempts: []};
   showFileReview();
   return true;
@@ -1197,6 +1316,8 @@ $('#home').onclick = e => {
   if (del) { const ex = Cloud.exams.find(x => x.id === del.dataset.del);
     if (confirm(`Xóa đề "${ex?.name}" cùng toàn bộ ghi chú, câu đã chữa và lịch sử làm lại khỏi tài khoản?`)) Cloud.deleteExam(del.dataset.del);
     return; }
+  const sc = e.target.closest('[data-scope]'); if (sc) { setScope(sc.dataset.scope); renderHome(); return; }
+  if (e.target.closest('[data-clearscope]')) { REP.scope = ''; renderHome(); return; }
   const th = e.target.closest('[data-th]'); if (th) { REP.th = +th.dataset.th; saveRep(); renderHome(); return; }
   if (e.target.closest('[data-still]')) { REP.still = !REP.still; saveRep(); renderHome(); return; }
   const src = e.target.closest('[data-src]'); if (src) { REP.src = src.dataset.src; saveRep(); renderHome(); return; }
@@ -1204,7 +1325,6 @@ $('#home').onclick = e => {
   if (rep) { if (openRepeat()) { if (rep === 'quiz') startQuiz(Q, {...lastCfg(), count: 'all'}); if (rep === 'setup') openSetup(); } return; }
   const o = e.target.closest('[data-open]'); if (o) openCloudExam(o.dataset.open, !!o.dataset.resume);
 };
-$('#home').onkeydown = e => { if (e.key === 'Enter' && e.target.matches('.exam')) e.target.click(); };
 $('#homeAdd').onclick = () => { $('#file').value = ''; $('#file').click(); };
 $('#btnHome').onclick = () => { flushNotes(); Cloud.flush?.(); showHome(); };
 const signIn = () => Cloud.signIn?.();
@@ -1213,6 +1333,154 @@ $('#btnAuth').onclick = () => {
   if (!Cloud.user) return signIn();
   if (confirm(`Đăng xuất ${Cloud.user.email}?\nDữ liệu vẫn giữ trên tài khoản; trình duyệt này quay về chế độ lưu cục bộ.`)) Cloud.signOut();
 };
+
+/* ---------- Phân tích: chủ đề, vùng yếu, dự đoán đậu ---------- */
+const PASS = .72;
+// Phân loại theo từ khóa dịch vụ AWS trong đề bài + đáp án đúng; một câu có thể thuộc nhiều chủ đề
+const TOPICS = [
+  ['Lambda', 'Serverless & tính toán', /\blambda\b/i],
+  ['EC2 & Auto Scaling', 'Serverless & tính toán', /\bec2\b|auto scaling/i],
+  ['Container (ECS, EKS, Fargate)', 'Serverless & tính toán', /\becs\b|\beks\b|\becr\b|fargate|elastic container|elastic kubernetes/i],
+  ['Step Functions', 'Serverless & tính toán', /step functions/i],
+  ['API Gateway', 'Tích hợp & API', /api gateway/i],
+  ['SQS', 'Tích hợp & API', /\bsqs\b|simple queue/i],
+  ['SNS', 'Tích hợp & API', /\bsns\b|simple notification/i],
+  ['EventBridge', 'Tích hợp & API', /eventbridge/i],
+  ['Kinesis', 'Tích hợp & API', /kinesis/i],
+  ['S3', 'Lưu trữ', /\bs3\b/i],
+  ['EBS, EFS, FSx', 'Lưu trữ', /\bebs\b|\befs\b|\bfsx\b|elastic block|elastic file/i],
+  ['DynamoDB', 'Cơ sở dữ liệu', /dynamodb|\bdax\b/i],
+  ['RDS & Aurora', 'Cơ sở dữ liệu', /\brds\b|aurora/i],
+  ['ElastiCache', 'Cơ sở dữ liệu', /elasticache|redis|memcached/i],
+  ['IAM & STS', 'Bảo mật & định danh', /\biam\b|\bsts\b|assumerole|assume role|identity and access/i],
+  ['Cognito', 'Bảo mật & định danh', /cognito/i],
+  ['KMS & mã hóa', 'Bảo mật & định danh', /\bkms\b|key management|encrypt/i],
+  ['Secrets Manager, Parameter Store', 'Bảo mật & định danh', /secrets manager|parameter store/i],
+  ['CloudFormation, SAM, CDK', 'Triển khai & CI/CD', /cloudformation|\bsam\b|serverless application model|\bcdk\b/i],
+  ['CodePipeline, CodeBuild, CodeDeploy', 'Triển khai & CI/CD', /code(pipeline|build|deploy|commit|artifact)/i],
+  ['Elastic Beanstalk', 'Triển khai & CI/CD', /beanstalk/i],
+  ['CloudWatch', 'Giám sát & khắc phục', /cloudwatch/i],
+  ['X-Ray', 'Giám sát & khắc phục', /x-ray/i],
+  ['CloudTrail', 'Giám sát & khắc phục', /cloudtrail/i],
+  ['CloudFront', 'Mạng & phân phối', /cloudfront/i],
+  ['VPC', 'Mạng & phân phối', /\bvpc\b|subnet|security group|\bnat\b|privatelink/i],
+  ['Load Balancer', 'Mạng & phân phối', /load balancer|\balb\b|\belb\b|\bnlb\b/i],
+  ['Route 53', 'Mạng & phân phối', /route 53/i],
+];
+const OTHER = ['Khác', 'Khác', null];
+const topicsOf = q => { const t = [q.question, ...q.cor.map(k => q.answers[k])].join(' '), m = TOPICS.filter(x => x[2].test(t)); return m.length ? m : [OTHER]; };
+let AN = {scope: store.get('ev-an', 'all'), topics: [], again: []};
+const courseOf = g => g.items[0]?.questions[0]?.src.exam_name?.split(' · ')[0] || '';
+function anGroups(){
+  const gs = REP.groups || [];
+  if (AN.scope.startsWith('c:')) return gs.filter(g => courseOf(g) === AN.scope.slice(2));
+  if (AN.scope.startsWith('g:')) return gs.filter(g => g.id === AN.scope.slice(2));
+  return gs;
+}
+// Gom số lượt đúng/sai theo một cách chia nhóm (chủ đề hoặc mảng)
+function tally(rows, keysOf){
+  const m = new Map();
+  rows.forEach(r => keysOf(r).forEach(k => {
+    let t = m.get(k); if (!t) m.set(k, t = {name: k, rows: [], total: 0, wrong: 0, again: 0, still: 0});
+    t.rows.push(r); t.total += r.total; t.wrong += r.wrong; if (r.wrong >= 2) t.again++; if (!r.last.ok) t.still++;
+  }));
+  return [...m.values()].map(t => ({...t, acc: 1 - t.wrong / t.total})).sort((a, b) => a.acc - b.acc || b.total - a.total);
+}
+// Cận dưới Wilson của tỉ lệ sai: chủ đề sai nhiều và đủ dữ liệu xếp trước chủ đề ít mẫu
+const weakScore = t => { const n = t.total, p = t.wrong / n, z = 1.28; return (p + z * z / (2 * n) - z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n); };
+// Ước lượng từ bài gốc: mỗi đề lấy lần mới nhất; đề đã làm lại chỉ tính nửa phần tiến bộ vì có yếu tố nhớ câu;
+// đề mới hơn nặng hơn. Sai số gồm dao động của bài thi 50 câu tính điểm, số câu đã làm và độ lệch giữa các đề.
+function predict(groups){
+  const tests = groups.map(g => { const a = g.atts.filter(x => !x.dup && x.total >= 20); if (!a.length) return null;
+    const pct = x => x.correct / x.total, first = a[0], last = a.at(-1);
+    return {score: (pct(first) + pct(last)) / 2, n: last.total, at: last.at}; }).filter(Boolean).sort((a, b) => b.at - a.at);
+  if (!tests.length) return null;
+  const w = tests.map((_, i) => .8 ** i), W = w.reduce((a, b) => a + b), p = tests.reduce((s, t, i) => s + w[i] * t.score, 0) / W;
+  const N = tests.reduce((s, t) => s + t.n, 0), k = W * W / w.reduce((s, x) => s + x * x, 0);
+  const spread = tests.reduce((s, t, i) => s + w[i] * (t.score - p) ** 2, 0) / W;
+  const sd = Math.sqrt(p * (1 - p) / 50 + p * (1 - p) / N + Math.max(spread, .0025) / k);
+  return {p, sd, prob: 1 / (1 + Math.exp(-1.702 * (p - PASS) / sd)), low: Math.max(0, p - 1.28 * sd), high: Math.min(1, p + 1.28 * sd), tests: tests.length, N};
+}
+const pc = x => Math.round(x * 100) + '%';
+const anTile = (l, v, s) => `<div class="an-tile"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+const anBars = list => list.map(t => { const weak = t.acc < PASS, few = t.total < 5;
+  const tip = `${pc(t.acc)} đúng${weak ? ' · dưới ngưỡng 72%' : ''}\n${t.name}\nSai ${t.wrong}/${t.total} lượt · ${t.rows.length} câu · ${t.again} câu sai lại${few ? '\nÍt dữ liệu' : ''}`;
+  return `<div class="abar${few ? ' few' : ''}" tabindex="0" data-tip="${esc(tip)}"><span class="an">${esc(t.name)}</span><span class="tr"><i class="${weak ? 'w' : ''}" style="width:${Math.max(1, t.acc * 100)}%"></i><u style="left:${PASS * 100}%"></u></span><span class="v">${weak ? '⚠ ' : ''}${pc(t.acc)}</span></div>`; }).join('');
+function anLineSVG(pts){
+  const W = Math.max(300, $('#anBody').clientWidth - 34), H = 220, L = 38, R = 44, T = 12, B = 26, x = i => pts.length > 1 ? L + i * (W - L - R) / (pts.length - 1) : (W + L - R) / 2, y = v => T + (1 - v) * (H - T - B);
+  const band = pts.length > 1 ? (W - L - R) / (pts.length - 1) : W - L - R, line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' '), step = Math.ceil(pts.length / Math.max(2, Math.floor((W - L - R) / 44)));
+  return `<svg id="anLine" viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Điểm từng lần làm so với ngưỡng 72%">
+    ${[0, .25, .5, .75, 1].map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v * 100}%</text>`).join('')}
+    <line class="limit" x1="${L}" x2="${W - R}" y1="${y(PASS)}" y2="${y(PASS)}"/><text x="${W - R + 4}" y="${y(PASS) + 4}">72%</text>
+    <path class="ln" d="${line}"/>${pts.map((p, i) => `<circle class="dot" cx="${x(i)}" cy="${y(p.v)}" r="5"/>${i % step === 0 || i === pts.length - 1 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${i + 1}</text>` : ''}`).join('')}
+    <text class="val" x="${x(pts.length - 1)}" y="${Math.max(12, y(pts.at(-1).v) - 10)}" text-anchor="middle">${pc(pts.at(-1).v)}</text>
+    <line class="cross" id="anCross" y1="${T}" y2="${H - B}" visibility="hidden"/>
+    ${pts.map((p, i) => `<rect x="${x(i) - band / 2}" y="${T}" width="${band}" height="${H - T - B}" fill="transparent" tabindex="0" data-x="${x(i)}" data-tip="${esc(`${pc(p.v)}\nLượt ${i + 1}: ${p.label}\n${p.correct}/${p.total} câu`)}"/>`).join('')}
+  </svg>`;
+}
+function renderAnalysis(){
+  if (view !== 'analysis') return;
+  $('#anTip').hidden = true;
+  const gs = REP.groups || [], courses = [...new Set(gs.map(courseOf).filter(Boolean))], valid = ['all', ...courses.map(c => 'c:' + c), ...gs.map(g => 'g:' + g.id)];
+  if (REP.groups && !valid.includes(AN.scope)) AN.scope = 'all';
+  $('#anScope').innerHTML = `<option value="all">Tất cả đề</option>${courses.length ? `<optgroup label="Theo khóa">${courses.map(c => `<option value="${esc('c:' + c)}">${esc(c)}</option>`).join('')}</optgroup>` : ''}<optgroup label="Theo đề">${gs.map(g => `<option value="${esc('g:' + g.id)}">${esc(g.name)}</option>`).join('')}</optgroup>`;
+  $('#anScope').value = AN.scope;
+  const body = $('#anBody');
+  if (!REP.groups) { body.innerHTML = `<div class="nt-empty">${REP.err ? 'Lỗi tải dữ liệu: ' + esc(REP.err) : 'Đang gom dữ liệu các đề…'}</div>`; return; }
+  const sel = anGroups(), rows = AN.scope === 'all' ? REP.rows : aggregate(sel.flatMap(g => g.items)).rows, done = rows.filter(r => r.total);
+  if (!done.length) { body.innerHTML = '<div class="nt-empty">Chưa có dữ liệu làm bài trong phạm vi này.</div>'; return; }
+  const topics = tally(done, r => topicsOf(r.q).map(t => t[0])), domains = tally(done, r => [...new Set(topicsOf(r.q).map(t => t[1]))]);
+  const weak = topics.filter(t => t.name !== 'Khác' && t.total >= 5 && t.acc < PASS).sort((a, b) => weakScore(b) - weakScore(a)).slice(0, 5);
+  const again = done.filter(r => r.wrong >= 2).sort((a, b) => b.wrong - a.wrong || b.wrong / b.total - a.wrong / a.total);
+  const pts = sel.flatMap(g => g.atts.filter(a => !a.dup && a.total >= 20).map(a => ({...a, v: a.correct / a.total, label: `${g.name} · lần ${a.no}`}))).sort(byTurn);
+  const pr = predict(sel), wrongRows = done.filter(r => r.wrong), fixedNow = wrongRows.filter(r => r.last.ok).length;
+  const other = topics.find(t => t.name === 'Khác');
+  AN.topics = topics; AN.again = again;
+  const verdict = !pr ? '' : pr.prob >= .75 ? '✓ Khả quan' : pr.prob >= .4 ? '● Sát ngưỡng' : '⚠ Chưa sẵn sàng';
+  body.innerHTML = `<div class="an-tiles">
+      ${anTile('Khả năng đậu (ước tính)', pr ? pc(pr.prob) : '—', pr ? `${verdict} · từ ${pr.tests} đề, ${pr.N} câu` : 'Cần ít nhất một bài từ 20 câu')}
+      ${anTile('Điểm dự kiến', pr ? pc(pr.p) : '—', pr ? `Khoảng ${pc(pr.low)} đến ${pc(pr.high)} · ngưỡng 72%` : '')}
+      ${anTile('Câu từng sai', wrongRows.length, `${done.length} câu đã làm · ${fixedNow} câu lần gần nhất đã đúng`)}
+      ${anTile('Câu sai lại', again.length, 'Sai từ 2 lần trở lên')}
+    </div>
+    <p class="an-note">Dự đoán chỉ là ước lượng thống kê từ bài luyện tập, không phải kết quả thi thật: AWS tính điểm theo thang 1000 nên 72% đúng không hoàn toàn tương đương 720 điểm${AN.scope === 'all' ? '. Nếu các đề thuộc nhiều chứng chỉ khác nhau, hãy chọn từng khóa ở ô phía trên để dự đoán có ý nghĩa' : ''}.</p>
+    ${pts.length ? `<div class="an-card"><h3>Điểm các lần làm bài gốc</h3><p class="sub">Theo thứ tự làm, từ bài từ 20 câu trở lên; đường ngang là ngưỡng 72%. Không tính lượt làm lại câu sai vì chỉ gồm câu chọn lọc.</p>
+      ${anLineSVG(pts)}
+      <details><summary>Bảng số liệu</summary><table class="an-table"><tr><th>#</th><th>Đề</th><th>Điểm</th><th>Số câu đúng</th></tr>${pts.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.label)}</td><td>${pc(p.v)}</td><td>${p.correct}/${p.total}</td></tr>`).join('')}</table></details></div>` : ''}
+    <div class="an-card"><h3>Vùng còn yếu</h3><p class="sub">Chủ đề dưới 72% đúng, từ 5 lượt trả lời trở lên, xếp theo mức đáng ôn nhất.</p>
+      ${weak.length ? weak.map(t => `<div class="an-weak"><div><b>⚠ ${esc(t.name)}</b> · ${pc(t.acc)} đúng<div class="m">Sai ${t.wrong}/${t.total} lượt · ${t.still} câu gần nhất vẫn sai · ${t.again} câu sai lại</div></div><button class="btn sm" data-an-topic="${esc(t.name)}">Xem ${t.rows.filter(r => r.wrong).length} câu từng sai</button></div>`).join('') : '<p class="sub">Chưa có chủ đề nào dưới ngưỡng với đủ dữ liệu.</p>'}</div>
+    <div class="an-two">
+      <div class="an-card"><h3>Tỉ lệ đúng theo mảng kiến thức</h3><p class="sub">Vạch dọc là ngưỡng 72%, ⚠ là dưới ngưỡng.</p>${anBars(domains)}</div>
+      <div class="an-card"><h3>Tỉ lệ đúng theo chủ đề</h3><p class="sub">Tính trên mọi lượt, gồm cả làm lại. Dòng mờ là chủ đề dưới 5 lượt.</p>${anBars(topics)}</div>
+    </div>
+    <div class="an-card"><h3>Câu sai lại nhiều nhất</h3><p class="sub">${again.length ? `${again.length} câu sai từ 2 lần trở lên.` : 'Chưa có câu nào sai từ 2 lần trở lên.'}</p>
+      ${again.length ? `<button class="btn sm primary" data-an-again="1">Xem ${again.length} câu sai lại</button>` : ''}
+      ${again.slice(0, 8).map(r => `<div class="an-q"><div class="t">${esc(r.q.question)}</div><span class="tag bad">Sai ${r.wrong}/${r.total} lần</span> ${histHTML(r)}</div>`).join('')}</div>
+    <p class="an-note">Chủ đề được phân loại tự động theo tên dịch vụ AWS trong đề bài và đáp án đúng; một câu có thể thuộc nhiều chủ đề${other ? `. ${other.rows.length}/${done.length} câu chưa nhận diện được, xếp vào "Khác"` : ''}.</p>`;
+}
+function showAnalysis(){ flushNotes(); Cloud.flush?.(); show('analysis'); window.scrollTo(0, 0); renderAnalysis(); computeRepeat(); }
+$('#btnAnalysis').onclick = showAnalysis;
+$('#anScope').onchange = e => { AN.scope = e.target.value; store.set('ev-an', AN.scope); renderAnalysis(); };
+$('#anBody').onclick = e => {
+  const name = e.target.closest('[data-an-topic]')?.dataset.anTopic, t = name && AN.topics.find(x => x.name === name);
+  if (t) return void openRepeat(t.rows.filter(r => r.wrong).sort((a, b) => b.wrong - a.wrong), 'Câu từng sai · ' + t.name, 'phân tích');
+  if (e.target.closest('[data-an-again]')) openRepeat(AN.again, 'Câu sai lại', 'phân tích');
+};
+// Tooltip dùng chung, hiện cả khi hover lẫn khi focus bằng bàn phím
+function anTip(e){
+  const el = e.target.closest?.('[data-tip]'), tip = $('#anTip'), cross = $('#anCross');
+  if (!el) { tip.hidden = true; cross?.setAttribute('visibility', 'hidden'); return; }
+  tip.textContent = el.dataset.tip; tip.hidden = false;
+  const r = el.getBoundingClientRect(), px = e.clientX || r.left + r.width / 2, py = e.clientY || r.top;
+  tip.style.left = Math.max(8, Math.min(px + 12, innerWidth - tip.offsetWidth - 8)) + 'px';
+  tip.style.top = Math.max(8, py - tip.offsetHeight - 10) + 'px';
+  if (el.dataset.x && cross) { cross.setAttribute('x1', el.dataset.x); cross.setAttribute('x2', el.dataset.x); cross.setAttribute('visibility', 'visible'); }
+}
+$('#anBody').addEventListener('pointermove', anTip);
+$('#anBody').addEventListener('focusin', anTip);
+$('#anBody').addEventListener('pointerleave', () => { $('#anTip').hidden = true; });
+$('#anBody').addEventListener('focusout', () => { $('#anTip').hidden = true; });
+addEventListener('resize', () => { if (view === 'analysis') renderAnalysis(); });
 
 /* ---------- Header / upload ---------- */
 $('#pick').onclick = () => $('#file').click();
@@ -1451,6 +1719,8 @@ onAuthStateChanged(auth, async u => {
   if (!u) { if (view === 'home') show('drop'); return; }
   listSubs.push(onSnapshot(query(col('exams'), orderBy('openedAt', 'desc')), s => {
     Cloud.exams = s.docs.map(x => ({id: x.id, ...x.data()})); Cloud.listReady = true; renderHome();
+    // Đề vừa nạp (vd. gửi từ extension) chưa được gom: gom lại để biết đây là lần làm thứ mấy
+    if (['review', 'analysis'].includes(view) && !virtual && fileId && Cloud.exams.some(e => e.id === fileId) && !groupOf(fileId)) computeRepeat();
   }, onErr));
   listSubs.push(onSnapshot(ref('state', 'quiz'), s => {
     Cloud.quiz = s.exists() ? s.data() : null; renderHome();

@@ -10,8 +10,14 @@ Web tĩnh xem lại và làm lại bài thi trắc nghiệm từ file JSON kết
 - Đánh dấu câu **đã chữa**, lọc câu chưa chữa/đã chữa, làm lại riêng các câu sai chưa chữa
 - Tự lưu bài đang làm, câu đã chữa và lịch sử các lượt làm lại vào localStorage (theo từng đề)
 - **Làm lại câu sai từ mọi đề** (màn danh sách đề, cần đăng nhập): gom mọi đề + lượt làm lại, không trùng câu (theo nội dung câu hỏi) và không đếm lại file trùng lần làm (export lại / export tab Marked); lọc từng sai / ≥2 / ≥3 lần, chỉ câu gần nhất vẫn sai; kết quả ghi về đúng đề gốc
+- **Gom các lần làm của cùng một đề** (cần đăng nhập): theo `exam_key` hoặc tập câu hỏi; mỗi đề hiện các lần làm, lịch sử từng câu, ôn câu sai/sai lại của riêng đề đó
+- **Phân tích** (cần đăng nhập): phân loại chủ đề theo dịch vụ AWS, vùng còn yếu, ước tính khả năng đậu, biểu đồ điểm và tỉ lệ đúng theo chủ đề
 - **Đồng bộ nhiều thiết bị** qua Firebase (đăng nhập Google): danh sách đề đã lưu, câu đã chữa, ghi chú, lịch sử làm lại và bài đang làm dở
 - **Export** toàn bộ dữ liệu ra file JSON để import lại trên máy khác
+
+## Extension gửi bài từ cloudexam.pro
+
+Xem [extension/README.md](extension/README.md).
 
 ## Định dạng JSON
 
