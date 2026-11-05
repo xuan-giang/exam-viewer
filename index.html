@@ -162,19 +162,23 @@ button.opt:disabled:hover{border-color:var(--border)}
 .exp summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
 .exp[open] summary::before{transform:rotate(90deg)}
 .exp .eb{padding:0 14px 14px;font-size:15px;line-height:1.6;overflow-wrap:anywhere}
-.exp .eh p,.exp .et p{margin:0}
-.exp .eh p:empty{height:1em}
-.exp .eh ul,.exp .eh ol{margin:0;padding-left:22px}
-.exp .eh li p{margin:0}
-.exp .eh h1,.exp .eh h2,.exp .eh h3,.exp .eh h4{margin:10px 0 4px;font-size:16px}
-.exp .eh hr{border:0;border-top:1px solid var(--border);margin:10px 0}
-.exp .eh a{color:var(--accent);text-decoration:underline}
-.exp .eh code{background:var(--surface);border-radius:4px;padding:1px 4px;font-size:.9em;overflow-wrap:anywhere}
-.exp .eh pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:6px 0;overflow-x:auto;font-size:13px;line-height:1.5}
-.exp .eh pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
-.exp .eh img{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--border);border-radius:6px;background:#fff}
-.exp .eh table{border-collapse:collapse;display:block;overflow-x:auto;margin:6px 0}
-.exp .eh td,.exp .eh th{border:1px solid var(--border);padding:4px 8px}
+.qt.eh{white-space:normal}
+.qt.eh code,.opt .eh code{background:var(--surface-2)}
+.qt.eh pre,.opt .eh pre{background:var(--surface-2);margin:2px 0}
+.qt.eh pre code,.opt .eh pre code{background:none}
+.eh p,.exp .et p{margin:0}
+.eh p:empty{height:1em}
+.eh ul,.eh ol{margin:0;padding-left:22px}
+.eh li p{margin:0}
+.eh h1,.eh h2,.eh h3,.eh h4{margin:10px 0 4px;font-size:16px}
+.eh hr{border:0;border-top:1px solid var(--border);margin:10px 0}
+.eh a{color:var(--accent);text-decoration:underline}
+.eh code{background:var(--surface);border-radius:4px;padding:1px 4px;font-size:.9em;overflow-wrap:anywhere}
+.eh pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:6px 0;overflow-x:auto;font-size:13px;line-height:1.5}
+.eh pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.eh img{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--border);border-radius:6px;background:#fff}
+.eh table{border-collapse:collapse;display:block;overflow-x:auto;margin:6px 0}
+.eh td,.eh th{border:1px solid var(--border);padding:4px 8px}
 .exp .et p{margin-bottom:.6em}
 .exp .et b{display:block}
 .exp .el{margin:10px 0 0;padding-left:18px}
@@ -650,7 +654,7 @@ function optsHTML(it, {reveal, interactive}){
     } else if (isS) cls += 'sel';
     const tag = interactive ? 'button' : 'div';
     const attrs = interactive ? ` type="button" data-k="${esc(k)}"${reveal ? ' disabled' : ''}` : '';
-    return `<${tag} class="opt ${cls}"${attrs}><span class="k">${L(i)}</span><span class="t">${esc(it.q.answers[k])}</span><span class="m">${mark}</span></${tag}>`;
+    return `<${tag} class="opt ${cls}"${attrs}><span class="k">${L(i)}</span>${optTextHTML(it.q, k)}<span class="m">${mark}</span></${tag}>`;
   }).join('');
 }
 const disp = (it, list) => list.map(k => L(it.order.indexOf(k))).filter(x => x >= 'A').sort().join(', ') || '—';
@@ -684,6 +688,10 @@ function cleanExpHTML(html){
   while (body.lastElementChild?.matches('p:empty')) body.lastElementChild.remove();
   return body.innerHTML;
 }
+// Đề bài, đáp án: dùng HTML của trang gốc nếu file có, không thì hiển thị text như cũ
+const richHTML = h => typeof h === 'string' && h.trim() ? cleanExpHTML(h) : '';
+const qtHTML = q => { const h = richHTML(q.src.question_html); return h ? `<div class="qt eh">${h}</div>` : `<p class="qt">${esc(q.question).trim()}</p>`; };
+const optTextHTML = (q, k) => { const h = richHTML(q.src.answers_html?.[k]); return h ? `<span class="t eh">${h}</span>` : `<span class="t">${esc(q.answers[k])}</span>`; };
 // File gửi trước khi có explanation_html: dựng lại đoạn văn từ text, đoạn ngắn mở đầu bằng biểu tượng là tiêu đề
 const expTextHTML = t => t.split(/\n{2,}/).map(p => /^\p{Extended_Pictographic}/u.test(p) && p.length < 80 ? `<p><b>${esc(p)}</b></p>` : `<p>${esc(p)}</p>`).join('');
 function expHTML(q){
@@ -798,7 +806,7 @@ function renderReview(){
       <div class="qh"><span class="qn">Câu ${num}</span>${virtual && c.kind === 'file' ? repTag(it.q) : statusTag(it)}${markTag(it.q)}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
         ${c.kind !== 'file' ? (virtual ? originTag(it.q) : `<span class="tag src">Câu gốc #${esc(it.q.no)}</span>`) : statTag(it.q)}${virtual ? '' : `<span data-hist="${qKey(it.q.question)}"></span>`}
         <span class="sp"></span>${virtual ? '' : fixBtn(it.q)}</div>
-      <p class="qt">${esc(it.q.question).trim()}</p>
+      ${qtHTML(it.q)}
       <div class="opts">${optsHTML(it, {reveal: true})}</div>
       <div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>
       ${expHTML(it.q)}
@@ -1075,7 +1083,7 @@ function renderQuiz(){
   $('#qzCard').innerHTML = `<article class="q">
     <div class="qh"><span class="qn">Câu ${cur + 1}/${n}</span>${reveal ? statusTag(it) : ''}${multi ? `<span class="tag multi">Chọn ${it.q.cor.length} đáp án</span>` : ''}
       <span class="sp"></span><button class="btn sm" id="qzFlag"${it.flag ? ' style="border-color:var(--warn);color:var(--warn)"' : ''}>${it.flag ? '★ Đã đánh dấu tạm' : '☆ Đánh dấu tạm'}</button></div>
-    <p class="qt">${esc(it.q.question).trim()}</p>
+    ${qtHTML(it.q)}
     <div class="opts" id="qzOpts">${optsHTML(it, {reveal, interactive: true})}</div>
     ${practice && multi && !it.checked ? `<div class="sum">Đã chọn ${it.pick.length}/${it.q.cor.length}</div>` : ''}
     ${reveal ? `<div class="sum"><span>Bạn chọn: <b>${disp(it, it.pick)}</b></span><span>Đáp án: <b>${disp(it, it.q.cor)}</b></span></div>${expHTML(it.q)}` : ''}

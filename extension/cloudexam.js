@@ -40,7 +40,7 @@
     };
   }
 
-  // HTML giải thích giữ nguyên cấu trúc của trang gốc, chỉ bỏ class/style của trang
+  // HTML câu hỏi, đáp án, giải thích giữ nguyên cấu trúc của trang gốc, chỉ bỏ class/style của trang
   function cleanHtml(el) {
     if (!el) return '';
     const copy = el.cloneNode(true);
@@ -68,6 +68,7 @@
       : [...block.querySelectorAll('[role="radio"]')].map((r) => ({ box: r, input: r }));
 
     const answers = {};
+    const answersHtml = {};
     const selected = [];
     const correct = [];
     options.forEach(({ box, input }) => {
@@ -76,6 +77,7 @@
       const label = labelSpan.innerText.trim().replace('.', '');
       const text = (labelSpan.nextElementSibling?.innerText || '').trim();
       answers[label] = text;
+      answersHtml[label] = cleanHtml(labelSpan.nextElementSibling);
 
       // Radio trên trang review luôn có aria-checked="false", nên dựa vào icon trong ô tròn:
       // tick xanh #197557 = chọn đúng, X đỏ #f2532f = chọn sai
@@ -96,7 +98,9 @@
       result,
       is_correct: result === 'correct',
       question: (questionEl?.innerText || '').trim(),
+      question_html: cleanHtml(questionEl),
       answers,
+      answers_html: answersHtml,
       selected_answer: selected.map((x) => x.label).join(', '),
       selected_answer_text: selected.map((x) => x.text).join(' | '),
       correct_answer: correct.map((x) => x.label).join(', '),
