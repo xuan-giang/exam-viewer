@@ -267,6 +267,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 #anLine .cross{stroke:var(--muted)}
 #anLine .val{fill:var(--text);font-weight:600}
 #anTip{position:fixed;z-index:50;pointer-events:none;max-width:280px;padding:7px 10px;border-radius:8px;background:var(--text);color:var(--surface);font-size:12px;line-height:1.5;white-space:pre-line}
+#history{max-width:900px;margin:0 auto;padding:16px}
+.hs-row{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;width:100%;text-align:left;padding:10px 14px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);box-shadow:var(--shadow)}
+.hs-row:hover,.hs-row:focus-visible{border-color:var(--accent);outline:none}
+.hs-row .sc{color:var(--text);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;min-width:48px}
+.hs-row .nm{flex:1 1 220px;min-width:0;color:var(--text);overflow-wrap:anywhere}
 .an-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 .an-table td,.an-table th{padding:4px 6px;border-top:1px solid var(--border);text-align:left}
 .an-card details summary{cursor:pointer;font-size:13px;color:var(--muted);margin-top:8px}
@@ -317,6 +322,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <button class="btn" id="btnNotes" hidden title="Xem tổng hợp các ghi chú">Ghi chú</button>
   <button class="btn" id="btnExport" hidden title="Tải về file JSON gồm câu hỏi, câu đã chữa và lịch sử làm lại">Export</button>
   <button class="btn" id="btnReload" hidden title="Mở file đề hoặc file đã export">Mở file</button>
+  <button class="btn" id="btnHistory" hidden title="Lịch sử các lượt làm lại">🕘<span class="lbl"> Lịch sử</span></button>
   <button class="btn" id="btnAnalysis" hidden title="Phân tích vùng còn yếu, chủ đề câu hỏi, dự đoán khả năng đậu">📊<span class="lbl"> Phân tích</span></button>
   <button class="btn" id="btnHome" hidden title="Trang chủ: danh sách đề và ôn tập từ tất cả đề">🏠<span class="lbl"> Trang chủ</span></button>
   <button class="btn" id="btnAuth" hidden></button>
@@ -345,6 +351,12 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <div id="homeResume"></div>
   <div id="homeStats"></div>
   <div id="homeList"></div>
+</section>
+
+<!-- Lịch sử các lượt làm lại -->
+<section id="history" hidden>
+  <div class="an-head"><h2>Lịch sử làm lại</h2><select id="hsScope" aria-label="Phạm vi lịch sử"></select></div>
+  <div id="hsBody"></div>
 </section>
 
 <!-- Phân tích theo chủ đề, dự đoán đậu -->
@@ -611,7 +623,7 @@ function exportData(){
 
 function show(v){
   view = v;
-  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes'; $('#home').hidden = v !== 'home'; $('#analysis').hidden = v !== 'analysis';
+  $('#drop').hidden = v !== 'drop'; $('#review').hidden = v !== 'review'; $('#quiz').hidden = v !== 'quiz'; $('#notes').hidden = v !== 'notes'; $('#home').hidden = v !== 'home'; $('#analysis').hidden = v !== 'analysis'; $('#history').hidden = v !== 'history';
   $('#fname').textContent = ['review', 'notes', 'quiz'].includes(v) ? fileName : '';
   $('#btnPractice').hidden = v !== 'review';
   $('#btnNotes').hidden = v !== 'review' || virtual;
@@ -714,7 +726,7 @@ function attemptInfo(){
 function bannerHTML(){
   const items = RV.items, total = items.length, nOk = items.filter(x => x.ok === true).length, pct = Math.round(nOk / total * 100);
   const wrong = items.filter(x => x.ok !== true), wrongFixed = wrong.filter(x => isFixed(x.q)).length;
-  const fixInfo = wrong.length ? `<span>Đã chữa <b>${wrongFixed}/${wrong.length}</b> câu sai</span>` : '';
+  const fixInfo = wrong.length && !virtual ? `<span>Đã chữa <b>${wrongFixed}/${wrong.length}</b> câu sai</span>` : '';
   const marked = items.filter(x => x.q.marked), markedOk = marked.filter(x => x.ok === true).length;
   const c = RV.ctx, pq = c.kind === 'file' && QZ === null ? pendingQuiz() : null;
   if (c.kind === 'file' && virtual) return `<div class="big" style="color:var(${Q.some(q => q.rep.wrong) ? '--bad' : '--accent'})">${total}</div>
@@ -743,7 +755,7 @@ function bannerHTML(){
     <div class="acts">${wrong.length ? '<button class="btn primary" data-act="retryWrong">Làm lại câu sai</button>' : ''}
     <button class="btn" data-act="retrySame">Làm lại lượt này</button>
     <button class="btn" data-act="setup">Cài đặt mới</button>
-    <button class="btn" data-act="file">Về bài gốc</button></div>`;
+    <button class="btn" data-act="file">${virtual ? 'Về danh sách câu' : 'Về bài gốc'}</button></div>`;
 }
 // Lịch sử một câu qua mọi lần làm + làm lại, cũ đến mới
 const histHTML = r => r?.hist?.length > 1 ? `<span class="tag src hist" title="${esc(r.hist.map(h => `${h.retake ? 'Làm lại' : 'Bài gốc'}${h.at ? ' ' + fmtDate(h.at) : ''}: ${h.ok ? 'Đúng' : 'Sai'}`).join('\n'))}">Lịch sử${r.hist.slice(-8).map(h => `<i class="${h.ok ? 'y' : 'x'}">${h.ok ? '✓' : '✗'}</i>`).join('')}</span>` : '';
@@ -1159,8 +1171,9 @@ document.addEventListener('keydown', e => {
 function renderAuth(){
   const b = $('#btnAuth');
   b.hidden = !Cloud.ready;
-  $('#btnHome').hidden = !(Cloud.user && ['review', 'notes', 'drop', 'analysis'].includes(view));
-  $('#btnAnalysis').hidden = !(Cloud.user && ['review', 'notes', 'home'].includes(view));
+  $('#btnHome').hidden = !(Cloud.user && ['review', 'notes', 'drop', 'analysis', 'history'].includes(view));
+  $('#btnAnalysis').hidden = !(Cloud.user && ['review', 'notes', 'home', 'history'].includes(view));
+  $('#btnHistory').hidden = !(Cloud.user && ['review', 'notes', 'home', 'analysis'].includes(view));
   $('#dropAuth').hidden = !Cloud.ready || !!Cloud.user;
   $('#dropNote').textContent = Cloud.user ? `Đã đăng nhập ${Cloud.user.email}: đề và dữ liệu ôn tập được lưu lên tài khoản.`
     : 'Chưa đăng nhập: dữ liệu chỉ lưu trên trình duyệt này.';
@@ -1206,7 +1219,8 @@ function groupCard(g){
         <span class="n">${x.dup ? 'Bản trùng' : 'Lần ' + x.no}</span><b>${pct}%</b><span>${e.correct}/${e.total} câu</span>
         <span>Đã chữa ${e.reviewedWrong || 0}/${e.wrong || 0}</span>${e.marked ? `<span>🚩 ${e.marked}</span>` : ''}${e.notes ? `<span>${e.notes} ghi chú</span>` : ''}${e.lastAttempt ? `<span>Làm lại gần nhất ${Math.round(e.lastAttempt.correct / e.lastAttempt.total * 100)}%</span>` : ''}</button>
         <button class="del" data-del="${esc(x.id)}" title="Xóa lần làm này khỏi tài khoản">Xóa</button></div>`; }).join('')}</div>
-    ${wrong ? `<div class="acts"><button class="btn sm primary" data-scope="${esc(g.id)}">Ôn câu sai đề này (${wrong})</button></div>` : ''}
+    ${wrong || (g.rows && retakes) ? `<div class="acts">${wrong ? `<button class="btn sm primary" data-scope="${esc(g.id)}">Ôn câu sai đề này (${wrong})</button>` : ''}
+      ${g.rows && retakes ? `<button class="btn sm" data-hist-group="${esc(g.id)}">Lịch sử làm lại</button>` : ''}</div>` : ''}
   </div>`;
 }
 /* ---------- Ôn tập từ tất cả đề (gom mọi đề + lượt làm lại, chống trùng) ---------- */
@@ -1287,6 +1301,7 @@ async function computeRepeat(){
   REP.sig = sig; REP.busy = false;
   renderHome();
   if (view === 'analysis') renderAnalysis();
+  if (view === 'history') renderHistory();
   if (view === 'review') { fillHist(); if (RV.ctx?.kind === 'file') $('#rvBanner').innerHTML = bannerHTML(); }
 }
 const thLabel = () => REP.th === 1 ? 'câu từng sai' : `câu sai từ ${REP.th} lần trở lên`;
@@ -1352,6 +1367,7 @@ $('#home').onclick = e => {
   if (del) { const ex = Cloud.exams.find(x => x.id === del.dataset.del);
     if (confirm(`Xóa đề "${ex?.name}" cùng toàn bộ ghi chú, câu đã chữa và lịch sử làm lại khỏi tài khoản?`)) Cloud.deleteExam(del.dataset.del);
     return; }
+  const hg = e.target.closest('[data-hist-group]'); if (hg) { HS.scope = 'g:' + hg.dataset.histGroup; showHistory(); return; }
   const sc = e.target.closest('[data-scope]'); if (sc) { setScope(sc.dataset.scope); renderHome(); return; }
   if (e.target.closest('[data-clearscope]')) { REP.scope = ''; renderHome(); return; }
   const th = e.target.closest('[data-th]'); if (th) { REP.th = +th.dataset.th; saveRep(); renderHome(); return; }
@@ -1407,11 +1423,19 @@ const OTHER = ['Khác', 'Khác', null];
 const topicsOf = q => { const t = [q.question, ...q.cor.map(k => q.answers[k])].join(' '), m = TOPICS.filter(x => x[2].test(t)); return m.length ? m : [OTHER]; };
 let AN = {scope: store.get('ev-an', 'all'), topics: [], again: []};
 const courseOf = g => g.items[0]?.questions[0]?.src.exam_name?.split(' · ')[0] || '';
-function anGroups(){
+function anGroups(scope = AN.scope){
   const gs = REP.groups || [];
-  if (AN.scope.startsWith('c:')) return gs.filter(g => courseOf(g) === AN.scope.slice(2));
-  if (AN.scope.startsWith('g:')) return gs.filter(g => g.id === AN.scope.slice(2));
+  if (scope.startsWith('c:')) return gs.filter(g => courseOf(g) === scope.slice(2));
+  if (scope.startsWith('g:')) return gs.filter(g => g.id === scope.slice(2));
   return gs;
+}
+// Điền ô chọn phạm vi (tất cả / theo khóa / theo đề); trả về phạm vi còn hợp lệ
+function fillScope(sel, scope){
+  const gs = REP.groups || [], courses = [...new Set(gs.map(courseOf).filter(Boolean))], valid = ['all', ...courses.map(c => 'c:' + c), ...gs.map(g => 'g:' + g.id)];
+  if (REP.groups && !valid.includes(scope)) scope = 'all';
+  sel.innerHTML = `<option value="all">Tất cả đề</option>${courses.length ? `<optgroup label="Theo khóa">${courses.map(c => `<option value="${esc('c:' + c)}">${esc(c)}</option>`).join('')}</optgroup>` : ''}<optgroup label="Theo đề">${gs.map(g => `<option value="${esc('g:' + g.id)}">${esc(g.name)}</option>`).join('')}</optgroup>`;
+  sel.value = scope;
+  return scope;
 }
 // Gom số lượt đúng/sai theo một cách chia nhóm (chủ đề hoặc mảng)
 function tally(rows, keysOf){
@@ -1457,10 +1481,7 @@ function anLineSVG(pts){
 function renderAnalysis(){
   if (view !== 'analysis') return;
   $('#anTip').hidden = true;
-  const gs = REP.groups || [], courses = [...new Set(gs.map(courseOf).filter(Boolean))], valid = ['all', ...courses.map(c => 'c:' + c), ...gs.map(g => 'g:' + g.id)];
-  if (REP.groups && !valid.includes(AN.scope)) AN.scope = 'all';
-  $('#anScope').innerHTML = `<option value="all">Tất cả đề</option>${courses.length ? `<optgroup label="Theo khóa">${courses.map(c => `<option value="${esc('c:' + c)}">${esc(c)}</option>`).join('')}</optgroup>` : ''}<optgroup label="Theo đề">${gs.map(g => `<option value="${esc('g:' + g.id)}">${esc(g.name)}</option>`).join('')}</optgroup>`;
-  $('#anScope').value = AN.scope;
+  AN.scope = fillScope($('#anScope'), AN.scope);
   const body = $('#anBody');
   if (!REP.groups) { body.innerHTML = `<div class="nt-empty">${REP.err ? 'Lỗi tải dữ liệu: ' + esc(REP.err) : 'Đang gom dữ liệu các đề…'}</div>`; return; }
   const sel = anGroups(), rows = AN.scope === 'all' ? REP.rows : aggregate(sel.flatMap(g => g.items)).rows, done = rows.filter(r => r.total);
@@ -1517,6 +1538,47 @@ $('#anBody').addEventListener('focusin', anTip);
 $('#anBody').addEventListener('pointerleave', () => { $('#anTip').hidden = true; });
 $('#anBody').addEventListener('focusout', () => { $('#anTip').hidden = true; });
 addEventListener('resize', () => { if (view === 'analysis') renderAnalysis(); });
+
+/* ---------- Lịch sử làm lại ---------- */
+let HS = {scope: store.get('ev-hs', 'all'), list: []};
+// Lượt ôn gộp được lưu tách về từng đề gốc (mã `<lượt>-<đề>`): ghép lại thành một lượt
+function historyList(groups){
+  const by = new Map();
+  groups.forEach(g => g.items.forEach(it => it.attempts.forEach(a => {
+    const tail = '-' + it.exam.id, part = a.cfg?.src === 'repeat' && a.id.endsWith(tail);
+    const key = part ? a.id.slice(0, -tail.length) : it.exam.id + ':' + a.id, q = new Map(it.questions.map(x => [x.no, x]));
+    let h = by.get(key); if (!h) by.set(key, h = {id: key, at: a.at || 0, secs: a.secs || 0, mode: a.mode, timeout: !!a.timeout, cfg: a.cfg, merged: part, items: [], names: new Set()});
+    (a.items || []).forEach(x => { if (q.has(x.no)) h.items.push({...x, q: q.get(x.no), exam: it.exam}); });
+    h.names.add(g.name);
+  })));
+  return [...by.values()].filter(h => h.items.length).sort((a, b) => b.at - a.at);
+}
+function renderHistory(){
+  if (view !== 'history') return;
+  HS.scope = fillScope($('#hsScope'), HS.scope);
+  const body = $('#hsBody');
+  if (!REP.groups) { body.innerHTML = `<div class="nt-empty">${REP.err ? 'Lỗi tải dữ liệu: ' + esc(REP.err) : 'Đang gom dữ liệu các đề…'}</div>`; return; }
+  const list = HS.list = historyList(anGroups(HS.scope));
+  if (!list.length) { body.innerHTML = '<div class="nt-empty">Chưa có lượt làm lại nào trong phạm vi này.</div>'; return; }
+  const all = list.flatMap(h => h.items), right = all.filter(x => x.ok).length;
+  body.innerHTML = `<p class="an-note"><b>${list.length}</b> lượt làm lại · <b>${all.length}</b> câu đã trả lời · đúng <b>${pc(right / all.length)}</b>. Bấm một lượt để xem lại từng câu.</p>`
+    + list.map((h, i) => { const ok = h.items.filter(x => x.ok).length, n = h.items.length, names = [...h.names];
+      return `<button class="hs-row" data-hs="${i}"><span class="sc">${pc(ok / n)}</span><span>${ok}/${n} câu</span>
+        <span class="nm">${esc(names.length > 1 ? `Ôn gộp từ ${names.length} đề` : names[0])}</span>
+        <span>${h.mode === 'exam' ? 'Thi thử' : 'Luyện tập'}${h.timeout ? ' · Hết giờ' : ''}</span><span>${fmt(h.secs)}</span><span>${h.at ? fmtDate(h.at) : '—'}</span></button>`; }).join('');
+}
+// Mở lại một lượt như bộ ảo để câu của nhiều đề hiện chung, làm lại vẫn ghi về đúng đề gốc
+function openHistoryAttempt(h){
+  const rows = h.items.map(x => ({wrong: 0, total: 0, last: null, hist: [], marked: false, fixed: false, ...REP.byKey?.get(qKey(x.q.question)), q: x.q, exam: x.exam}));
+  if (!openRepeat(rows, 'Lượt làm lại', h.at ? fmtDate(h.at) : 'lịch sử')) return;
+  showAttempt({id: h.id, at: h.at, secs: h.secs, mode: h.mode, timeout: h.timeout, cfg: h.cfg,
+    items: h.items.map((x, i) => ({no: String(i + 1), order: x.order, pick: x.pick, ok: x.ok}))});
+  window.scrollTo(0, 0);
+}
+function showHistory(){ flushNotes(); Cloud.flush?.(); show('history'); window.scrollTo(0, 0); renderHistory(); computeRepeat(); }
+$('#btnHistory').onclick = showHistory;
+$('#hsScope').onchange = e => { HS.scope = e.target.value; store.set('ev-hs', HS.scope); renderHistory(); };
+$('#hsBody').onclick = e => { const b = e.target.closest('[data-hs]'); if (b) openHistoryAttempt(HS.list[+b.dataset.hs]); };
 
 /* ---------- Header / upload ---------- */
 $('#pick').onclick = () => $('#file').click();
