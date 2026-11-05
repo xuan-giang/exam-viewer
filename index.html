@@ -156,13 +156,27 @@ button.opt:disabled:hover{border-color:var(--border)}
 .sum{margin-top:12px;font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
 .sum b{color:var(--text)}
 /* Giải thích đáp án (trường explanation từ script export) */
-.exp{margin-top:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)}
+.exp{margin-top:12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);min-width:0}
 .exp summary{cursor:pointer;padding:8px 12px;font-size:13px;font-weight:600;color:var(--accent);list-style:none}
 .exp summary::-webkit-details-marker{display:none}
 .exp summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
 .exp[open] summary::before{transform:rotate(90deg)}
-.exp .eb{padding:0 12px 12px;font-size:14px;line-height:1.6}
-.exp .et{white-space:pre-wrap;overflow-wrap:anywhere}
+.exp .eb{padding:0 14px 14px;font-size:15px;line-height:1.6;overflow-wrap:anywhere}
+.exp .eh p,.exp .et p{margin:0}
+.exp .eh p:empty{height:1em}
+.exp .eh ul,.exp .eh ol{margin:0;padding-left:22px}
+.exp .eh li p{margin:0}
+.exp .eh h1,.exp .eh h2,.exp .eh h3,.exp .eh h4{margin:10px 0 4px;font-size:16px}
+.exp .eh hr{border:0;border-top:1px solid var(--border);margin:10px 0}
+.exp .eh a{color:var(--accent);text-decoration:underline}
+.exp .eh code{background:var(--surface);border-radius:4px;padding:1px 4px;font-size:.9em;overflow-wrap:anywhere}
+.exp .eh pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin:6px 0;overflow-x:auto;font-size:13px;line-height:1.5}
+.exp .eh pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.exp .eh img{display:block;max-width:100%;height:auto;margin:8px 0;border:1px solid var(--border);border-radius:6px;background:#fff}
+.exp .eh table{border-collapse:collapse;display:block;overflow-x:auto;margin:6px 0}
+.exp .eh td,.exp .eh th{border:1px solid var(--border);padding:4px 8px}
+.exp .et p{margin-bottom:.6em}
+.exp .et b{display:block}
 .exp .el{margin:10px 0 0;padding-left:18px}
 .exp .el a{color:var(--accent);overflow-wrap:anywhere}
 .exp .ei{display:flex;flex-direction:column;gap:8px;margin-top:10px}
@@ -640,13 +654,35 @@ const noteBox = q => { const n = D.notes[q.no];
 const fixBtn = q => `<button class="btn sm${isFixed(q) ? ' fixed-on' : ''}" data-fix="${esc(q.no)}" title="${isFixed(q) ? 'Chữa lúc ' + fmtDate(D.reviewed[q.no]) + ' · bấm để bỏ' : 'Đánh dấu là đã chữa câu này'}">${isFixed(q) ? '✓ Đã chữa' : '☐ Đánh dấu đã chữa'}</button>`;
 // Giải thích đáp án: chỉ có trong file export bằng script mới; link/ảnh chỉ nhận http(s)
 const httpUrl = u => typeof u === 'string' && /^https?:\/\//i.test(u);
+const EXP_TAGS = new Set('P BR UL OL LI STRONG B EM I U S SUB SUP CODE PRE H1 H2 H3 H4 HR A IMG SPAN DIV TABLE THEAD TBODY TR TD TH BLOCKQUOTE'.split(' '));
+const EXP_DROP = 'script,style,iframe,object,embed,form,input,button,textarea,select,link,meta,svg,math,video,audio,base';
+// HTML đến từ file nên phải lọc: chỉ giữ thẻ trong danh sách, bỏ mọi thuộc tính trừ link/ảnh http(s)
+function cleanExpHTML(html){
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  body.querySelectorAll(EXP_DROP).forEach(e => e.remove());
+  [...body.querySelectorAll('*')].forEach(e => {
+    if (!EXP_TAGS.has(e.tagName)) { e.replaceWith(...e.childNodes); return; }
+    const href = e.getAttribute('href'), src = e.getAttribute('src'), alt = e.getAttribute('alt');
+    [...e.attributes].forEach(a => e.removeAttribute(a.name));
+    if (e.tagName === 'A' && httpUrl(href)) { e.setAttribute('href', href); e.setAttribute('target', '_blank'); e.setAttribute('rel', 'noopener noreferrer'); }
+    if (e.tagName === 'IMG') { if (!httpUrl(src)) { e.remove(); return; } e.setAttribute('src', src); e.setAttribute('alt', alt || 'Hình minh hoạ'); e.setAttribute('loading', 'lazy'); }
+  });
+  // Trang gốc lồng <p> nên khi phân tích sinh thêm đoạn rỗng ở hai đầu
+  while (body.firstElementChild?.matches('p:empty')) body.firstElementChild.remove();
+  while (body.lastElementChild?.matches('p:empty')) body.lastElementChild.remove();
+  return body.innerHTML;
+}
+// File gửi trước khi có explanation_html: dựng lại đoạn văn từ text, đoạn ngắn mở đầu bằng biểu tượng là tiêu đề
+const expTextHTML = t => t.split(/\n{2,}/).map(p => /^\p{Extended_Pictographic}/u.test(p) && p.length < 80 ? `<p><b>${esc(p)}</b></p>` : `<p>${esc(p)}</p>`).join('');
 function expHTML(q){
   const s = q.src, text = typeof s.explanation === 'string' ? s.explanation.trim() : '';
+  const html = typeof s.explanation_html === 'string' && s.explanation_html.trim() ? cleanExpHTML(s.explanation_html) : '';
+  if (html) return `<details class="exp" open><summary>Giải thích đáp án</summary><div class="eb"><div class="eh">${html}</div></div></details>`;
   const links = (Array.isArray(s.explanation_links) ? s.explanation_links : []).filter(l => httpUrl(l?.url));
   const imgs = (Array.isArray(s.explanation_images) ? s.explanation_images : []).filter(httpUrl);
   if (!text && !links.length && !imgs.length) return '';
-  return `<details class="exp"><summary>Giải thích đáp án</summary><div class="eb">
-    ${text ? `<div class="et">${esc(text)}</div>` : ''}
+  return `<details class="exp" open><summary>Giải thích đáp án</summary><div class="eb">
+    ${text ? `<div class="et">${expTextHTML(text)}</div>` : ''}
     ${imgs.length ? `<div class="ei">${imgs.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="Hình minh hoạ" loading="lazy"></a>`).join('')}</div>` : ''}
     ${links.length ? `<ul class="el">${links.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text || l.url)}</a></li>`).join('')}</ul>` : ''}
   </div></details>`;

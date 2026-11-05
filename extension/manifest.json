@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gửi bài thi sang Exam Viewer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Thêm nút trên trang review của cloudexam.pro để gửi kết quả bài thi sang Exam Viewer.",
   "permissions": ["storage"],
   "host_permissions": ["https://xuan-giang.github.io/exam-viewer/*"],

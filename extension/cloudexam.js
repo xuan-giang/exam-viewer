@@ -40,6 +40,16 @@
     };
   }
 
+  // HTML giải thích giữ nguyên cấu trúc của trang gốc, chỉ bỏ class/style của trang
+  function cleanHtml(el) {
+    if (!el) return '';
+    const copy = el.cloneNode(true);
+    copy.querySelectorAll('*').forEach((e) => [...e.attributes].forEach((a) => {
+      if (!['href', 'src', 'alt'].includes(a.name)) e.removeAttribute(a.name);
+    }));
+    return copy.innerHTML.trim();
+  }
+
   function readQuestion(block, markedSet, exportedAt, identity) {
     const header = block.querySelector(HEADER_SEL);
     const questionNo = getQuestionNo(header);
@@ -93,6 +103,7 @@
       correct_answer_text: correct.map((x) => x.text).join(' | '),
       marked_for_review: markedSet.has(questionNo),
       explanation: (expBody?.innerText || '').replace(/\n{3,}/g, '\n\n').trim(),
+      explanation_html: cleanHtml(expBody),
       explanation_links: [...(expBody?.querySelectorAll('a[href]') || [])].map((a) => ({ text: a.innerText.trim(), url: a.href })),
       explanation_images: [...(expBody?.querySelectorAll('img[src]') || [])].map((img) => img.src),
       question_images: [...(questionEl?.querySelectorAll('img[src]') || [])].map((img) => img.src),
