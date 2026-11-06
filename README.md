@@ -13,6 +13,7 @@ Web tĩnh xem lại và làm lại bài thi trắc nghiệm từ file JSON kết
 - **Gom các lần làm của cùng một đề** (cần đăng nhập): theo `exam_key` hoặc tập câu hỏi; mỗi đề hiện các lần làm, lịch sử từng câu, ôn câu sai/sai lại của riêng đề đó
 - **Lịch sử làm lại** (cần đăng nhập): mọi lượt làm lại theo đề, khóa hoặc tất cả đề, ghép các lượt ôn gộp, mở lại chi tiết từng câu
 - **Phân tích** (cần đăng nhập): phân loại chủ đề theo dịch vụ AWS, vùng còn yếu, ước tính khả năng đậu, biểu đồ điểm và tỉ lệ đúng theo chủ đề
+- **Tiến bộ** (trong Phân tích): điểm lần đầu của từng đề tách khỏi điểm làm lại, xu hướng các lượt làm lại câu sai, số câu đã chữa được, khả năng đậu qua từng bài, so sánh chủ đề giữa giai đoạn đầu và gần đây
 - **Đồng bộ nhiều thiết bị** qua Firebase (đăng nhập Google): danh sách đề đã lưu, câu đã chữa, ghi chú, lịch sử làm lại và bài đang làm dở
 - **Export** toàn bộ dữ liệu ra file JSON để import lại trên máy khác
 
